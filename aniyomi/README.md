@@ -157,6 +157,29 @@ pagina**.
   funzione e agganciata per **registrare** l'indirizzo e poi lasciarla proseguire: si osserva,
   non si altera.
 
+## Il percorso vero del download, misurato sul dispositivo (2026-08-19)
+
+L'utente ha fotografato i passaggi, e sono **tre**, non uno:
+
+1. `Download` apre **nella pagina stessa** un elenco di opzioni: `Premium MP4 1080p` con la
+   corona, poi `Pixeldrain MP4` a 720p, 480p e 360p, ognuna con l'icona 'apri in una scheda
+   nuova';
+2. toccandone una compare un pannello **'Leaving hanime.tv'** che mostra l'indirizzo esterno
+   **come TESTO** (`https://pixeldrain.net/u/<id>`), con 'Continue to External Site' e 'Cancel';
+3. solo il terzo tocco esce davvero dal sito, e su pixeldrain il file si riproduce o si scarica.
+
+- ⚠️⚠️ **La sorgente si ferma al passo DUE**: l'indirizzo si legge dal testo, senza acconsentire
+  a niente e senza toccare il flusso del sito.
+- ⚠️⚠️ **Ecco perche tutte le tracce precedenti tornavano a mani vuote**: quelle opzioni sono
+  **pulsanti senza `href`**, quindi una scansione delle ancore non poteva vederle, e il pannello
+  non e un `dialog`, quindi nemmeno la ricerca di dialoghi lo trovava. Non mancava un tentativo:
+  mancava un **secondo clic**.
+- ⚠️ **Mai la voce `Premium MP4 1080p`**, quella con la corona: su un account gratuito e un muro
+  di pagamento, e l'estensione non finge di essere abbonata. L'ordine e 720p, 480p, 360p.
+- Ⓘ **Il sito avvisa che alcuni Paesi bloccano Pixeldrain**; nel caso misurato la riproduzione
+  funzionava comunque. E pixeldrain ha un **tetto di traffico giornaliero** (nella prova:
+  642 MB usati su 6 GB), che lo streaming consuma come un download.
+
 ## Che cosa si sa del player, misurato (2026-08-19)
 
 Tracce raccolte sul dispositivo. Un fatto positivo prima di tutto: **l'accesso funziona e

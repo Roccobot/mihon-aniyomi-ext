@@ -135,7 +135,13 @@ class HanimeWebView(private val userAgent: String) {
                         // this hook that address stays invisible from here.
                         view.evaluateJavascript(HOOK_WINDOW_OPEN, null)
                         view.evaluateJavascript(DOM_INVENTORY) { HanimeLog.log("PLAY dom    $it") }
-                        clickPlay(view, 1)
+                        clickPlay(view, 1) { external ->
+                            if (found == null) {
+                                HanimeLog.log("PLAY external found: $external")
+                                found = external to emptyMap()
+                                latch.countDown()
+                            }
+                        }
                     }, SETTLE_DELAY)
                 }
             }
@@ -167,13 +173,22 @@ class HanimeWebView(private val userAgent: String) {
         val seen: List<String>,
     )
 
-    private fun clickPlay(view: WebView, attempt: Int) {
+    /**
+     * The site's download flow takes THREE steps, and the user measured them on the device
+     * (2026-08-19, screenshots): `Download` opens a list of options in the page itself
+     * (`Premium MP4 1080p` with a crown, then `Pixeldrain MP4` at 720p, 480p and 360p, each
+     * with an 'open in new tab' icon); tapping one opens a confirmation panel titled 'Leaving
+     * hanime.tv' that shows the external address AS TEXT; only a third tap actually leaves.
+     *
+     * ⚠️ So this stops at step two: the address is read from the text, which needs no consent
+     * to anything and leaves the site's own flow untouched. And it explains every earlier
+     * empty-handed trace: those options are BUTTONS with no href, so a scan for anchors could
+     * never see them, and the panel is not a `dialog` either.
+     */
+    private fun clickPlay(view: WebView, attempt: Int, onExternal: (String) -> Unit) {
         view.evaluateJavascript(CLICK_PLAY) { outcome ->
             HanimeLog.log("PLAY click$attempt $outcome")
         }
-        // The page carries an 'MP4Download' control: on a free account it may lead to the
-        // premium modal, or it may hand over a direct address. Only trying says which, and
-        // the requests that follow are in the trace either way.
         if (attempt == DOWNLOAD_ATTEMPT) {
             // The snapshot has to be taken BEFORE the click, or there is nothing to compare the
             // page against afterwards.
@@ -181,20 +196,25 @@ class HanimeWebView(private val userAgent: String) {
             view.evaluateJavascript(CLICK_DOWNLOAD) { outcome ->
                 HanimeLog.log("PLAY dl     $outcome")
             }
-            // ⚠️ What the click OPENED is the answer still missing: the site does its own
-            // handshake right after, loads crown, block and upgrade icons, and then a single
-            // sample 2,5s later reported `noDialog` with no new link anywhere. So the reply is
-            // neither a recognisable dialog nor an anchor, and one sample cannot tell 'nothing
-            // happened' from 'it happened later': hence three, spread out, reading the TEXT
-            // that appeared rather than looking for a shape.
-            listOf(1_500L, 5_000L, 11_000L).forEachIndexed { index, delay ->
+            // Step two: pick a Pixeldrain option, never the crowned Premium one.
+            handler.postDelayed({
+                view.evaluateJavascript(CLICK_OPTION) { HanimeLog.log("PLAY option $it") }
+            }, OPTION_DELAY)
+            // Step three, read instead of clicked: the address is in the panel's text. Sampled
+            // more than once because the panel appears after the site's own handshake.
+            listOf(1_500L, 4_000L, 8_000L).forEach { delay ->
                 handler.postDelayed({
-                    view.evaluateJavascript(MODAL_DUMP) { HanimeLog.log("PLAY after${index + 1} $it") }
-                }, delay)
+                    view.evaluateJavascript(FIND_EXTERNAL_URL) { raw ->
+                        val url = raw.trim('"').replace("\\/", "/").replace("\\\"", "")
+                        HanimeLog.log("PLAY url?   $url")
+                        if (url.startsWith("http")) onExternal(url)
+                    }
+                    view.evaluateJavascript(MODAL_DUMP) { HanimeLog.log("PLAY panel  $it") }
+                }, OPTION_DELAY + delay)
             }
         }
         if (attempt < CLICK_ATTEMPTS) {
-            handler.postDelayed({ clickPlay(view, attempt + 1) }, CLICK_INTERVAL)
+            handler.postDelayed({ clickPlay(view, attempt + 1, onExternal) }, CLICK_INTERVAL)
         }
     }
 
@@ -292,6 +312,59 @@ class HanimeWebView(private val userAgent: String) {
 
         private const val DOM_DUMP = "document.documentElement.outerHTML"
         private const val DOWNLOAD_ATTEMPT = 3
+
+        private const val OPTION_DELAY = 2_000L
+
+        /**
+         * Clicks one of the download options, and ⚠️ NEVER the crowned `Premium MP4 1080p`: on a
+         * free account that one is a paywall, and this extension does not pretend to be a
+         * subscriber. 720p first, then 480p, then 360p, matching the fixed quality of the source.
+         */
+        private const val CLICK_OPTION =
+            """(function () {
+                 var nodes = document.querySelectorAll('button, [role=button], a, div');
+                 var opts = [];
+                 for (var i = 0; i < nodes.length; i++) {
+                   var t = (nodes[i].textContent || '').replace(/\s+/g, ' ').trim();
+                   // Short text only: a long one belongs to the container holding every option.
+                   if (t.length > 60 || !/pixeldrain/i.test(t) || /premium/i.test(t)) continue;
+                   opts.push({ node: nodes[i], text: t });
+                 }
+                 if (!opts.length) return 'noPixeldrainOption';
+                 var order = ['720', '480', '360'];
+                 for (var k = 0; k < order.length; k++) {
+                   for (var j = 0; j < opts.length; j++) {
+                     if (opts[j].text.indexOf(order[k]) >= 0) {
+                       opts[j].node.click();
+                       return 'clicked=' + opts[j].text;
+                     }
+                   }
+                 }
+                 opts[0].node.click();
+                 return 'clickedFirst=' + opts[0].text;
+               })();"""
+
+        /**
+         * Reads the external address from the confirmation panel's TEXT. ⚠️ Text, not an anchor:
+         * the panel prints the url in a box, and there is no link to read, which is why every
+         * anchor scan came back with nothing but Discord.
+         */
+        private const val FIND_EXTERNAL_URL =
+            """(function () {
+                 var re = /https?:\/\/pixeldrain\.(?:net|com)\/u\/[A-Za-z0-9]+/;
+                 var body = document.body ? (document.body.innerText || '') : '';
+                 var m = body.match(re);
+                 if (m) return m[0];
+                 var anchors = document.querySelectorAll('a[href]');
+                 for (var i = 0; i < anchors.length; i++) {
+                   var h = anchors[i].getAttribute('href') || '';
+                   if (re.test(h)) return h.match(re)[0];
+                 }
+                 if (window.__hanimeOpened && re.test(window.__hanimeOpened)) {
+                   return window.__hanimeOpened.match(re)[0];
+                 }
+                 return 'none';
+               })();"""
 
         private const val SNAPSHOT_TEXT =
             """(function () {
