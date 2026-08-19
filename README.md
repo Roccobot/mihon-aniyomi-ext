@@ -8,7 +8,7 @@ installa a mano sul telefono.
 | [`aniyomi/`](aniyomi/) | [Aniyomi](https://github.com/aniyomiorg/aniyomi) (anime) | sorgente **hanime.tv**, che in app si chiama `Hanime Roccobot` |
 | `mihon/` | [Mihon](https://github.com/mihonapp/mihon) (manga) | ancora niente |
 
-## Perche due cartelle e non una
+## Perché due cartelle e non una
 
 ⚠️ **I due ecosistemi NON possono condividere lo stesso telaio di build**, e la separazione
 serve a questo: hanno librerie di estensione diverse (`extensions-lib` di Aniyomi contro
@@ -18,17 +18,17 @@ Gradle dovrebbe tenere insieme due `core` incompatibili; due cartelle, ognuna co
 build completo, non hanno alcun punto di contatto da mantenere allineato.
 
 - Ogni cartella ha il **suo** wrapper Gradle, il suo `settings.gradle.kts` e il suo `core`.
-- Ogni cartella ha il **suo** workflow in [`.github/workflows/`](.github/workflows), perche
+- Ogni cartella ha il **suo** workflow in [`.github/workflows/`](.github/workflows), perché
   GitHub legge i workflow solo dalla radice del repository.
 
 ## Come si installa un'estensione
 
-1. Scheda **Releases**, apri **`latest`**: e aggiornata a ogni build e porta sempre lo stesso
+1. Scheda **Releases**, apri **`latest`**: è aggiornata a ogni build e porta sempre lo stesso
    allegato, `aniyomi-hanime.apk`, scaricabile con un tocco. Le versioni con un tag `v*` hanno una Release propria,
-   che resta. ⚠️ Gli artefatti di Actions non si usano piu: chiedono l'accesso a GitHub,
+   che resta. ⚠️ Gli artefatti di Actions non si usano più: chiedono l'accesso a GitHub,
    arrivano in uno zip, scadono dopo 90 giorni, e l'azione che li carica gira ancora su Node 20.
 2. Apri l'APK sul telefono e installalo come una normale app.
-3. L'app chiede di **fidarsi di una firma sconosciuta**: e la richiesta attesa per
+3. L'app chiede di **fidarsi di una firma sconosciuta**: è la richiesta attesa per
    un'estensione che non viene dal repository ufficiale, e si conferma.
 
-Il dettaglio di come e fatta ogni sorgente sta nel README della sua cartella.
+Il dettaglio di com'è fatta ogni sorgente sta nel README della sua cartella.

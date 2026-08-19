@@ -1,6 +1,6 @@
 name: Aniyomi - hanime.tv
 
-# Un workflow per ecosistema, perche i build sono separati: questo tocca solo aniyomi/.
+# Un workflow per ecosistema, perché i build sono separati: questo tocca solo aniyomi/.
 on:
   push:
     branches: [main]
@@ -37,13 +37,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       # Build di debug per scelta: una release vuole un keystore, e questa estensione si
-      # installa a mano su un telefono. L'unica differenza pratica e che Aniyomi chiede
+      # installa a mano su un telefono. L'unica differenza pratica è che Aniyomi chiede
       # una volta di fidarsi della firma.
       - name: Build
         run: ./gradlew :src:en:hanime:assembleDebug --stacktrace
 
-      # ⚠️ NIENTE actions/upload-artifact, e non e una semplificazione: quella azione gira
-      # ancora su Node 20 anche alla v5, ed e la sola origine dell'avviso di deprecazione che
+      # ⚠️ NIENTE actions/upload-artifact, e non è una semplificazione: quella azione gira
+      # ancora su Node 20 anche alla v5, ed è la sola origine dell'avviso di deprecazione che
       # restava. Togliendola l'avviso cade all'origine, e l'APK finisce in un posto migliore:
       # una Release 'latest' aggiornata a ogni build, che si scarica con un tocco dal telefono,
       # non chiede l'accesso, non arriva in uno zip e non scade dopo 90 giorni.
@@ -54,9 +54,9 @@ jobs:
         run: |
           set -eu
           BUILT=$(ls src/en/hanime/build/outputs/apk/debug/*.apk | head -1)
-          # ⚠️ NOME FISSO, e non e un vezzo: `--clobber` sostituisce solo a parita di nome, e il
+          # ⚠️ NOME FISSO, e non è un vezzo: `--clobber` sostituisce solo a parità di nome, e il
           # nome prodotto dal build contiene la versione, quindi ogni build ne aggiungeva uno
-          # nuovo (la release si e ritrovata con la v14.16 e la v14.17 insieme). Con un nome
+          # nuovo (la release si è ritrovata con la v14.16 e la v14.17 insieme). Con un nome
           # stabile l'allegato si sostituisce davvero, e l'indirizzo di download non cambia mai.
           cp "$BUILT" aniyomi-hanime.apk
           NOTE="APK dell'estensione hanime.tv per Aniyomi: $(basename "$BUILT"), build ${GITHUB_SHA}."
