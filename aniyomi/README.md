@@ -6,8 +6,8 @@ il repository e privato e l'APK non e distribuito, si installa a mano sul telefo
 
 ## Come si installa
 
-1. Vai nella scheda **Releases** del repository e apri **`latest`**: e aggiornata a ogni build
-   e porta l'APK come allegato, scaricabile con un tocco. ⚠️ Non ci sono piu artefatti di
+1. Vai nella scheda **Releases** del repository e apri **`latest`**: e aggiornata a ogni build e
+   porta sempre lo stesso allegato, `aniyomi-hanime.apk`, scaricabile con un tocco. ⚠️ Non ci sono piu artefatti di
    Actions: `actions/upload-artifact` gira ancora su Node 20 anche alla v5 ed era la sola
    origine dell'avviso di deprecazione, e un artefatto chiede l'accesso a GitHub, arriva in uno
    zip e scade dopo 90 giorni.

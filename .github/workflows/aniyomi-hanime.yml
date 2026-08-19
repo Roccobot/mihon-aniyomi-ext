@@ -53,14 +53,21 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
-          APK=$(ls src/en/hanime/build/outputs/apk/debug/*.apk | head -1)
-          NOTE="APK dell'estensione hanime.tv per Aniyomi. Build ${GITHUB_SHA}."
-          # La release esiste una volta sola e poi si aggiorna: --clobber sostituisce l'asset
-          # invece di accumularne uno per build.
+          BUILT=$(ls src/en/hanime/build/outputs/apk/debug/*.apk | head -1)
+          # ⚠️ NOME FISSO, e non e un vezzo: `--clobber` sostituisce solo a parita di nome, e il
+          # nome prodotto dal build contiene la versione, quindi ogni build ne aggiungeva uno
+          # nuovo (la release si e ritrovata con la v14.16 e la v14.17 insieme). Con un nome
+          # stabile l'allegato si sostituisce davvero, e l'indirizzo di download non cambia mai.
+          cp "$BUILT" aniyomi-hanime.apk
+          NOTE="APK dell'estensione hanime.tv per Aniyomi: $(basename "$BUILT"), build ${GITHUB_SHA}."
           gh release view latest >/dev/null 2>&1 \
             || gh release create latest --prerelease --title "Ultima build" --notes "$NOTE"
           gh release edit latest --notes "$NOTE"
-          gh release upload latest "$APK" --clobber
+          gh release upload latest aniyomi-hanime.apk --clobber
+          # Ripulisce gli allegati versionati rimasti dai giri precedenti.
+          gh release view latest --json assets -q '.assets[].name' \
+            | grep -v '^aniyomi-hanime\.apk$' \
+            | while read -r old; do gh release delete-asset latest "$old" -y; done
 
       # Su tag: una Release che resta, per le versioni che vale la pena tenere.
       - name: Pubblica la Release del tag
