@@ -12,22 +12,47 @@ il repository e privato e l'APK non e distribuito, si installa a mano sul telefo
 3. Aniyomi chiede di **fidarsi di una firma sconosciuta**: e la richiesta attesa per
    un'estensione che non viene dal repository ufficiale, e si conferma.
 
-## Com'e fatta
+## Com'e fatta: la pagina del sito nella WebView dell'app
 
-Nessuno scraping di HTML: la sorgente legge la stessa API JSON che usa il sito.
+⚠️⚠️ **L'API del sito NON e utilizzabile da questa estensione, e non e una scelta di
+comodo.** Storia breve, perche e la cosa che serve sapere prima di rimetterci mano:
 
-| a che serve | endpoint |
+- la prima versione chiamava l'API **v8** (`search.htv-services.com` per il catalogo,
+  `hanime.tv/api/v8/video` per il resto), presa da un client di terze parti. Non funziona:
+  quei **due host non esistono piu**, e il telefono lo dice con un `NXDOMAIN`;
+- l'API attuale e la **v11**, e ha due strati di protezione: le richieste di catalogo
+  portano una **firma prodotta da un modulo WASM** che il sito distribuisce dentro il
+  bundle del player, e l'handshake dei flussi manda un **token sigillato** con una chiave
+  ricavata da quello stesso bundle, rispondendo con un'intestazione cifrata;
+- ⚠️ **rifarli e fuori discussione**: vorrebbe dire prendere il modulo compilato del sito e
+  le sue chiavi, cioe ricostruire la protezione. Non si fa, con o senza un account.
+
+Quello che si fa invece: **il client del sito gira come previsto**, nella WebView dell'app e
+con la sessione dell'utente, e l'estensione legge il risultato (vedi `HanimeWebView.kt`).
+
+| a che serve | come |
 |---|---|
-| elenco, ultimi arrivi, ricerca | `POST search.htv-services.com/`, tre ordinamenti dello stesso endpoint |
-| dettagli, episodi, flussi video | `GET hanime.tv/api/v8/video?id=<slug>` |
+| elenco, ultimi arrivi, ricerca, episodi | il **DOM reso** della pagina, letto dalla WebView |
+| flusso video | la **richiesta media** che il player della pagina finisce per fare |
 
-- **La risoluzione non si chiede**: si prende la piu alta disponibile, con la preferenza
-  del pannello in cima a parita di disponibilita.
-- **I flussi riservati agli abbonati restano fuori**: arrivano con l'indirizzo vuoto e
-  vengono scartati, non aggirati.
-- Il sito sta dietro una sfida anti-bot di Cloudflare, che l'estensione risolve nella
-  WebView dell'app: nessun `client` sovrascritto, perche quello predefinito lo fa gia
-  (`network.cloudflareClient` compila ma e deprecato proprio per questo).
+- ⚠️⚠️ **Gli elenchi si leggono per INDIRIZZO, mai per classe CSS**: ogni scheda linka a
+  `/videos/hentai/<slug>`, che e l'indirizzo pubblico delle pagine e sopravvive a un
+  restyling; i nomi di classe no, e indovinarli e l'errore che ha fatto naufragare la prima
+  versione. Titolo e copertina si prendono da `title`, `alt` e `img` dentro il link, con
+  ripiego sullo slug.
+- ⚠️ **Il DOM si aspetta con un polling, non con `onPageFinished`**: il sito rende le liste
+  **dopo** che la pagina risulta 'finita', quindi quel callback scatta troppo presto.
+- **La risoluzione non si chiede**: si prende la piu alta disponibile, con la preferenza del
+  pannello in cima a parita di disponibilita.
+- ⚠️ **Tutto passa dal thread principale e blocca quello chiamante**: una WebView non si
+  tocca da un thread di lavoro, mentre le sorgenti sono chiamate da thread IO. Da qui
+  l'`Handler` piu il latch, e il timeout su ogni ingresso.
+- ⚠️ **Restano tre indovinelli, ed e l'unica parte non misurata**: gli indirizzi delle pagine
+  di esplorazione, ultimi arrivi e ricerca (le costanti marcate `TO CONFIRM` in
+  `Hanime.kt`). Se un elenco torna vuoto, la causa e quasi certamente uno di quei tre, non
+  il parsing.
+- **Niente paginazione, per ora**: il sito pagina scorrendo, e un numero di pagina che
+  questa sorgente non puo verificare sarebbe una promessa non mantenuta.
 
 ## Un'opera e una SERIE, non un video
 

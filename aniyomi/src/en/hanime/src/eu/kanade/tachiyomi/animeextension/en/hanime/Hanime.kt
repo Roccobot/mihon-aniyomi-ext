@@ -11,34 +11,37 @@ import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
-import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.network.POST
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
-import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Headers
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 /**
- * hanime.tv reads entirely from the JSON API its own frontend uses, so nothing here
- * scrapes HTML: three endpoints cover the whole source.
+ * hanime.tv, read through the site's own pages in the app's WebView.
  *
- *  - POST search.htv-services.com  -> browse, latest and search (one endpoint, three orderings)
- *  - GET  /api/v8/video?id=<slug>  -> details, episode list and stream list
+ * ⚠️ WHY NOT THE API, so nobody rebuilds it that way: the v11 API cannot be called by this
+ * extension at all. Catalog requests carry a signature minted by a WASM module the site
+ * ships inside its player bundle, and the stream handshake seals its body with a key taken
+ * from that same bundle and answers with an encrypted header. Reproducing those would mean
+ * lifting the site's compiled module and its keys: this extension does not do it. The v8
+ * endpoints an older generation of clients used are gone for good, their hosts included
+ * (`search.htv-services.com` and `members.hanime.tv` no longer resolve at all).
  *
- * Streams the site reserves for paying members arrive with an empty url and are
- * dropped: this source only plays what a guest is served.
+ * So the site's client runs as intended, in a browser, with the user's own session, and the
+ * extension reads the result: the rendered DOM for lists, and the media request the page's
+ * own player ends up making for playback. See [HanimeWebView].
+ *
+ * ⚠️ Lists are read by URL, never by CSS class: every card links to `/videos/hentai/<slug>`,
+ * and that path is the site's public address, so it survives a restyling. Class names would
+ * not, and guessing them is what the first version of this source got wrong.
  */
 class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
 
     // ⚠️ Changing this changes the source id, which Aniyomi derives from name, lang and
-    // API version: entries already in the library would be orphaned. Free now, because
-    // the source is new, not free later.
+    // API version: entries already in the library would be orphaned.
     override val name = "Hanime Roccobot"
 
     override val baseUrl = "https://hanime.tv"
@@ -47,130 +50,121 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override val supportsLatest = true
 
-    // No client override on purpose: the site sits behind a Cloudflare bot challenge,
-    // and the default client already handles it in the app's own WebView. Asking for
-    // `network.cloudflareClient` compiles but is deprecated for exactly this reason.
-
-    private val json = Json {
-        ignoreUnknownKeys = true
-        // The API is loose with types (heights arrive both as 1080 and as "1080"),
-        // and a strict parser would fail on a value it could perfectly well read.
-        isLenient = true
-        coerceInputValues = true
-    }
-
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
 
-    override fun headersBuilder() = super.headersBuilder()
-        .add("Referer", "$baseUrl/")
-        .add("X-Signature-Version", "web2")
+    private val webView by lazy { HanimeWebView(headers["User-Agent"] ?: DEFAULT_UA) }
 
-    // ── Browse, latest, search ──────────────────────────────────────────────────
+    override fun headersBuilder() = super.headersBuilder().add("Referer", "$baseUrl/")
 
-    override fun popularAnimeRequest(page: Int): Request = searchRequest(page, "", ORDER_VIEWS)
+    // ── Lists ──────────────────────────────────────────────────────────────────
+    //
+    // These go through the WebView instead of the http client, so the request/parse pairs
+    // that AnimeHttpSource wants are not part of this source's flow at all.
 
-    override fun popularAnimeParse(response: Response): AnimesPage = searchPageParse(response)
+    override suspend fun getPopularAnime(page: Int): AnimesPage = pageOf(BROWSE_URL)
 
-    override fun latestUpdatesRequest(page: Int): Request = searchRequest(page, "", ORDER_RELEASED)
+    override suspend fun getLatestUpdates(page: Int): AnimesPage = pageOf(LATEST_URL)
 
-    override fun latestUpdatesParse(response: Response): AnimesPage = searchPageParse(response)
+    override suspend fun getSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage =
+        pageOf(searchUrl(query))
 
-    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request =
-        searchRequest(page, query, ORDER_RELEASED)
-
-    override fun searchAnimeParse(response: Response): AnimesPage = searchPageParse(response)
-
-    private fun searchRequest(page: Int, query: String, orderBy: String): Request {
-        val payload = buildJsonObject {
-            put("search_text", query)
-            put("tags", buildJsonArray {})
-            put("tags_mode", "AND")
-            put("brands", buildJsonArray {})
-            put("blacklist", buildJsonArray {})
-            put("order_by", orderBy)
-            put("ordering", "desc")
-            // The API counts pages from zero, Aniyomi from one.
-            put("page", page - 1)
-        }
-        return POST(SEARCH_URL, headers, payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+    private fun pageOf(url: String): AnimesPage {
+        val html = webView.renderedHtml(url, VIDEO_LINK)
+        val entries = Jsoup.parse(html, baseUrl)
+            .select("a[href*=$VIDEO_PATH]")
+            .mapNotNull { it.toEntry() }
+            // One entry per SERIES: the site gives every episode its own page, and the
+            // grouping rule is the title stripped of its trailing number.
+            .distinctBy { it.url }
+        // No pagination yet, deliberately: the site paginates by scrolling, and a page
+        // number this source cannot verify would be a promise it does not keep.
+        return AnimesPage(entries, false)
     }
 
-    private fun searchPageParse(response: Response): AnimesPage {
-        val page = response.parseAs<SearchResponseDto>()
-        val hits = json.decodeFromString<List<HitDto>>(page.hits.ifBlank { "[]" })
-        val entries = hits
-            // One entry per SERIES, not per video: the site gives every episode its own
-            // page, and grouping is by the title stripped of its trailing number.
-            .distinctBy { it.slug.baseSlug() }
-            .map { hit ->
-                SAnime.create().apply {
-                    url = groupUrl(hit.slug)
-                    title = hit.name.baseTitle()
-                    thumbnail_url = hit.coverUrl ?: hit.posterUrl
-                    author = hit.brand
-                }
-            }
-        return AnimesPage(entries, page.page + 1 < page.nbPages)
-    }
-
-    // ── Details, episodes, streams: all three from the same endpoint ────────────
-
-    override fun animeDetailsRequest(anime: SAnime): Request = apiRequest(anime.url)
-
-    override fun animeDetailsParse(response: Response): SAnime {
-        val video = response.parseAs<VideoResponseDto>().video
+    private fun Element.toEntry(): SAnime? {
+        val slug = attr("href").substringAfterLast('/').ifBlank { return null }
+        val label = listOf(attr("title"), selectFirst("img")?.attr("alt").orEmpty(), text())
+            .firstOrNull { it.isNotBlank() }
+            ?: slug.replace('-', ' ')
         return SAnime.create().apply {
-            url = groupUrl(video.slug)
-            title = video.name.baseTitle()
-            thumbnail_url = video.coverUrl ?: video.posterUrl
-            author = video.brand
-            genre = video.tags.joinToString { it.text }
-            // The description is HTML: tags are stripped, and the entities the site
-            // actually uses are unescaped, or they show up literally in the app.
-            description = video.description?.stripHtml()
+            url = groupUrl(slug)
+            title = label.baseTitle()
+            thumbnail_url = selectFirst("img")?.imageUrl()
+        }
+    }
+
+    private fun Element.imageUrl(): String? =
+        listOf(absUrl("src"), attr("data-src"), attr("srcset").substringBefore(' '))
+            .firstOrNull { it.isNotBlank() }
+
+    // ── One entry: details, episodes, streams ──────────────────────────────────
+
+    override suspend fun getAnimeDetails(anime: SAnime): SAnime {
+        val page = Jsoup.parse(webView.renderedHtml(baseUrl + anime.url, VIDEO_LINK), baseUrl)
+        return SAnime.create().apply {
+            url = anime.url
+            title = (page.selectFirst("h1")?.text() ?: page.title()).baseTitle()
+            thumbnail_url = page.selectFirst("meta[property=og:image]")?.attr("content")
+            description = page.selectFirst("meta[name=description]")?.attr("content")
             status = SAnime.COMPLETED
             initialized = true
         }
     }
 
-    override fun episodeListRequest(anime: SAnime): Request = apiRequest(anime.url)
-
-    override fun episodeListParse(response: Response): List<SEpisode> {
-        val data = response.parseAs<VideoResponseDto>()
-        val itself = FranchiseEntryDto(data.video.name, data.video.slug, data.video.releasedAtUnix)
-        // ⚠️ The franchise is NOT the series: the site puts sequels and spin-offs in the
-        // same franchise, so it is filtered down to the entries whose title matches the
-        // group. Taking the franchise whole would put 'Titolo IV' inside 'Titolo III'.
-        val group = data.video.name.baseTitle()
-        val entries = (listOf(itself) + data.franchise)
-            .filter { it.name.baseTitle() == group }
-            .distinctBy { it.slug }
-        return entries.map { entry ->
-            SEpisode.create().apply {
-                url = "$VIDEO_PATH${entry.slug}"
-                name = entry.name
-                episode_number = entry.episodeNumber()
-                date_upload = (entry.releasedAtUnix ?: 0L) * 1000L
+    override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
+        val page = Jsoup.parse(webView.renderedHtml(baseUrl + anime.url, VIDEO_LINK), baseUrl)
+        val group = anime.title.baseTitle()
+        // ⚠️ Every link to a video page on this page is a candidate, and the filter on the
+        // group title is what keeps sequels out: the site lists the whole franchise here,
+        // so taking it whole would put 'Titolo IV' inside 'Titolo III'.
+        val episodes = page.select("a[href*=$VIDEO_PATH]")
+            .mapNotNull { link ->
+                val slug = link.attr("href").substringAfterLast('/').ifBlank { return@mapNotNull null }
+                val label = listOf(link.attr("title"), link.selectFirst("img")?.attr("alt").orEmpty(), link.text())
+                    .firstOrNull { it.isNotBlank() } ?: slug.replace('-', ' ')
+                Triple(slug, label, label.baseTitle())
             }
+            .filter { (_, _, base) -> base.equals(group, ignoreCase = true) }
+            .distinctBy { (slug, _, _) -> slug }
+            .map { (slug, label, _) ->
+                SEpisode.create().apply {
+                    url = "$VIDEO_PATH$slug"
+                    name = label
+                    episode_number = episodeNumber(label, slug)
+                }
+            }
+        // A page that lists no sibling is a one-shot: the entry itself is the episode.
+        return episodes.ifEmpty {
+            listOf(
+                SEpisode.create().apply {
+                    url = anime.url
+                    name = anime.title
+                    episode_number = 1F
+                },
+            )
         }.sortedByDescending { it.episode_number }
     }
 
-    override fun videoListRequest(episode: SEpisode): Request = apiRequest(episode.url)
-
-    override fun videoListParse(response: Response): List<Video> {
-        val streams = response.parseAs<VideoResponseDto>()
-            .manifest?.servers?.flatMap { it.streams }
-            .orEmpty()
-        return streams
-            .filter { it.url.isNotBlank() }
-            .distinctBy { it.height }
-            .map { stream -> Video(stream.url, "${stream.height}p", stream.url, headers) }
+    override suspend fun getVideoList(episode: SEpisode): List<Video> {
+        val (url, requestHeaders) = webView.interceptMedia(baseUrl + episode.url, MEDIA_URL)
+            ?: throw Exception(
+                "No stream: the page's player did not request one within " +
+                    "${HanimeWebView.DEFAULT_TIMEOUT / 1000}s. If you are signed out, sign in " +
+                    "to hanime.tv in the app's WebView and try again.",
+            )
+        val built = Headers.Builder().apply {
+            requestHeaders.forEach { (key, value) -> add(key, value) }
+            if (requestHeaders.keys.none { it.equals("Referer", ignoreCase = true) }) {
+                add("Referer", "$baseUrl/")
+            }
+        }.build()
+        return listOf(Video(url, url.qualityLabel(), url, built))
     }
 
-    // Highest resolution first, with the preferred one on top when the site has it:
-    // the choice is never asked, exactly as for the other Roccobot downloaders.
+    // Highest resolution first, with the preferred one on top when it is there: the choice
+    // is never asked, as for the other Roccobot downloaders.
     override fun List<Video>.sort(): List<Video> {
         val preferred = preferences.getString(PREF_QUALITY_KEY, PREF_QUALITY_DEFAULT)!!
         return sortedWith(
@@ -190,67 +184,74 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
         }.also(screen::addPreference)
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────────────
-
-    private fun apiRequest(url: String): Request =
-        GET("$baseUrl/api/v8/video?id=${url.substringAfterLast('/')}", headers)
-
-    private inline fun <reified T> Response.parseAs(): T = use {
-        json.decodeFromString(it.body.string())
-    }
-
     // ── Grouping: one entry per series, not per episode ─────────────────────────
-    //
-    // hanime.tv gives every episode its own page and its own slug, so without this an
-    // eight-episode series shows up as eight entries. The rule is the one the old
-    // extension used: same title once the trailing number is removed, same series.
 
     /** `Anime Titolo III 02` -> `Anime Titolo III`. A title with no number is left alone. */
     private fun String.baseTitle(): String = TITLE_NUMBER.replace(trim(), "").trim()
 
-    /** `anime-titolo-iii-2` -> `anime-titolo-iii`. */
-    private fun String.baseSlug(): String = SLUG_NUMBER.replace(this, "")
-
     /**
-     * The url that identifies the GROUP, and it has to be derived rather than picked:
-     * the entry Aniyomi keeps in the library is this url, so taking the slug of whichever
-     * episode happened to come first in a page of results would file the same series
-     * under two entries depending on the search that found it. Numbering on this site
-     * starts at 1, so episode 1 is the stable representative of the group.
+     * The url that identifies the GROUP, derived and not picked: it is the key Aniyomi
+     * keeps the library entry under, so taking the slug of whichever episode came first in
+     * a list would file one series under two entries. Numbering starts at 1 on this site,
+     * so episode 1 is the group's stable representative.
      */
     private fun groupUrl(slug: String): String =
-        if (SLUG_NUMBER.containsMatchIn(slug)) "$VIDEO_PATH${slug.baseSlug()}-1" else "$VIDEO_PATH$slug"
+        if (SLUG_NUMBER.containsMatchIn(slug)) {
+            "$VIDEO_PATH${SLUG_NUMBER.replace(slug, "")}-1"
+        } else {
+            "$VIDEO_PATH$slug"
+        }
 
-    /** The number comes from the title, and from the slug only if the title has none. */
-    private fun FranchiseEntryDto.episodeNumber(): Float =
-        (TITLE_NUMBER.find(name.trim()) ?: SLUG_NUMBER.find(slug))
+    /** The number comes from the title, and from the slug only when the title has none. */
+    private fun episodeNumber(title: String, slug: String): Float =
+        (TITLE_NUMBER.find(title.trim()) ?: SLUG_NUMBER.find(slug))
             ?.groupValues?.get(1)?.toFloatOrNull() ?: 1F
+
+    private fun String.qualityLabel(): String =
+        HEIGHT_IN_URL.find(this)?.groupValues?.get(1)?.let { "${it}p" } ?: "Default"
 
     private fun String.height(): Int = removeSuffix("p").toIntOrNull() ?: 0
 
-    private fun String.stripHtml(): String =
-        replace(HTML_TAG, "")
-            .replace("&nbsp;", " ")
-            .replace("&amp;", "&")
-            .replace("&quot;", "'")
-            .replace("&#39;", "'")
-            .trim()
+    // ── Not part of this source's flow ─────────────────────────────────────────
+    //
+    // AnimeHttpSource requires these, but every call here goes through the WebView, so
+    // they are never reached. They throw instead of returning something plausible: a
+    // silent empty list would look like 'the site has nothing'.
+
+    private fun unused(): Nothing = throw UnsupportedOperationException("Not used")
+
+    override fun popularAnimeRequest(page: Int): Request = unused()
+    override fun popularAnimeParse(response: Response): AnimesPage = unused()
+    override fun latestUpdatesRequest(page: Int): Request = unused()
+    override fun latestUpdatesParse(response: Response): AnimesPage = unused()
+    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request = unused()
+    override fun searchAnimeParse(response: Response): AnimesPage = unused()
+    override fun animeDetailsParse(response: Response): SAnime = unused()
+    override fun episodeListParse(response: Response): List<SEpisode> = unused()
+    override fun videoListParse(response: Response): List<Video> = unused()
 
     companion object {
-        private const val SEARCH_URL = "https://search.htv-services.com/"
         private const val VIDEO_PATH = "/videos/hentai/"
-        private const val ORDER_VIEWS = "views"
-        private const val ORDER_RELEASED = "released_at_unix"
 
-        private val JSON_MEDIA_TYPE = "application/json".toMediaType()
+        // ⚠️ TO CONFIRM on the device: these three are the site's own page addresses, and
+        // they are the only guess left in this source. If a list comes back empty, it is
+        // almost certainly one of these being wrong, not the parsing.
+        private const val BROWSE_URL = "https://hanime.tv/browse/trending?time=month"
+        private const val LATEST_URL = "https://hanime.tv/browse/recent"
+        private fun searchUrl(query: String) = "https://hanime.tv/search?query=${query.replace(' ', '+')}"
+
+        private val VIDEO_LINK = Regex(Regex.escape(VIDEO_PATH))
+        private val MEDIA_URL = Regex("""\.(m3u8|mp4)(\?|$)""")
 
         // ⚠️ ARABIC digits only, and only at the very end: titles carry roman numerals as
-        // part of the name ('Anime Titolo III'), and a pattern greedy enough to eat those
-        // would merge three different series into one. The optional 'ep'/'episode' covers
-        // the few entries written that way.
+        // part of the name ('Anime Titolo III'), and a greedier pattern would merge three
+        // different series into one.
         private val TITLE_NUMBER = Regex("""[\s._-]*(?:ep\.?|episode)?\s*(\d{1,3})$""", RegexOption.IGNORE_CASE)
         private val SLUG_NUMBER = Regex("""-(\d{1,3})$""")
-        private val HTML_TAG = Regex("<[^>]*>")
+        private val HEIGHT_IN_URL = Regex("""(\d{3,4})p""")
+
+        private const val DEFAULT_UA =
+            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36"
 
         private val QUALITIES = arrayOf("1080p", "720p", "480p", "360p")
         private const val PREF_QUALITY_KEY = "preferred_quality"
