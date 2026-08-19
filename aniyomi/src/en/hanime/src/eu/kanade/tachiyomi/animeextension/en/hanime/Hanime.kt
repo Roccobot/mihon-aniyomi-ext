@@ -212,6 +212,10 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
+        // A separator instead of asking anyone to clear the log first: the ritual of
+        // searching `debug clear` before every attempt is invisible in a search field, and a
+        // trace nobody can find the start of is as good as no trace.
+        HanimeLog.log("──────── playback attempt: ${episode.url} ────────")
         HanimeLog.log("PLAY session cookies: ${webView.cookieNames(baseUrl)}")
         val result = webView.interceptMedia(baseUrl + episode.url, MEDIA_URL)
         // ⚠️ The failure message carries what the page actually requested: without it, 'no

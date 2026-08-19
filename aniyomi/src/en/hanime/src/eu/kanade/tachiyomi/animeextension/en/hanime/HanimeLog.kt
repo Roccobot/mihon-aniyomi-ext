@@ -26,6 +26,7 @@ object HanimeLog {
     private const val TAG = "HanimeRoccobot"
     private const val MAX_LINES = 400
     const val FILE_NAME = "hanime-debug.log"
+    private const val ATTEMPT_MARK = "playback attempt:"
 
     private val lines = ArrayDeque<String>()
     private val stamp = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
@@ -46,8 +47,19 @@ object HanimeLog {
         if (toFile) appendToFile(line)
     }
 
+    /**
+     * Newest first, and the last playback attempt on its own at the top: the interesting part
+     * of a trace is always the most recent try, and scrolling to the bottom of 400 lines to
+     * find it is what made the log tiresome to read.
+     */
     fun dump(): String = synchronized(lines) {
-        if (lines.isEmpty()) "Nothing logged yet. Open an episode and press play, then read this again." else lines.joinToString("\n")
+        if (lines.isEmpty()) {
+            return "Nothing logged yet. Open an episode, press play, then read this again."
+        }
+        val lastAttempt = lines.indexOfLast { it.contains(ATTEMPT_MARK) }
+        val head = if (lastAttempt >= 0) lines.toList().subList(lastAttempt, lines.size) else emptyList()
+        val all = lines.joinToString("\n")
+        if (head.isEmpty()) all else head.joinToString("\n") + "\n\n===== earlier =====\n" + all
     }
 
     fun clear() {

@@ -95,6 +95,11 @@ passo lascia una traccia in `HanimeLog`, e si legge in tre modi, dal piu comodo 
 - Per svuotarla si cerca `debug clear` nella sorgente. ⚠️ Sta **sullo stesso canale** e non
   nelle impostazioni perche lo stub `Preference` della libreria non ha un costruttore che una
   sorgente possa chiamare (`ListPreference` e `SwitchPreferenceCompat` si, `Preference` no).
+- ⚠️⚠️ **Ma svuotare NON serve piu, ed e stato un difetto di progetto**: l'utente non trovava
+  `debug clear` (2026-08-19: *non riesco a capire dov'e*), e aveva ragione, perche un comando
+  che vive in un campo di ricerca e invisibile. Ora ogni tentativo di riproduzione apre una
+  **riga separatore** e la traccia mostra **l'ultimo tentativo in cima**, col resto sotto un
+  `===== earlier =====`. Il rito prima di ogni prova e caduto.
 - **Che cosa registra**: caricamento e resa di ogni pagina, **ogni richiesta non statica** che
   la pagina fa (con metodo e indirizzo), gli **errori JS del sito** (che spiegano la maggior
   parte dei fallimenti silenziosi: 'non autenticato', handshake rifiutato), l'esito di ogni
