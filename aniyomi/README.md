@@ -144,6 +144,18 @@ menu con `Sign Out`, `My Channel` e `Account Settings`, e un `keep-alive` su
 - ⚠️ **il catalogo passa da un host nuovo**, `guest.freeanimehentai.net/api/v11/search_hvs`,
   con un **GET**: il `guest.` nel nome dice che esiste una via da ospite, e questo era
   sconosciuto quando la sorgente e stata scritta.
+- ⚠️⚠️ **Il tasto `MP4Download` della pagina ESISTE e fa partire la sequenza giusta**
+  (traccia pulita del 2026-08-19, ad accesso fatto): il clic porta il sito a chiedere
+  `country_code` e poi a fare **da se** `OPTIONS` e `POST` su `auth.hanime.tv/api/v11/handshake`.
+  Nessuna richiesta media segue, e insieme all'handshake il sito carica le icone
+  `crown-rounded`, `block`, `upgrade`, `full-hd-rounded` e `warning-rounded`, cioe quelle di un
+  **modale che promuove l'abbonamento**. Da qui la lettura del modale (`PLAY modal`), che e
+  l'unica cosa che distingue un muro commerciale da un secondo passo da fare.
+- ⚠️ **Nella traccia NON devono finire dati personali**, ed erano finiti: l'etichetta del menu
+  utente portava nome utente e indirizzo email dell'utente, in un file che si incolla in chat.
+  Ora sono oscurati.
+- ⚠️ **'Autenticato' si legge da `Sign Out`, non dall'assenza di `Sign In`**: il menu offre
+  entrambi a chi ha la sessione attiva, quindi il vecchio controllo diceva l'opposto del vero.
 
 ## Il workflow e le azioni che GitHub segnala
 

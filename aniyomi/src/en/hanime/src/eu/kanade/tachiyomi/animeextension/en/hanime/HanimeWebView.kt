@@ -174,6 +174,13 @@ class HanimeWebView(private val userAgent: String) {
             view.evaluateJavascript(CLICK_DOWNLOAD) { outcome ->
                 HanimeLog.log("PLAY dl     $outcome")
             }
+            // ⚠️ What the click OPENED is the answer we lack: the trace shows the site doing
+            // its own handshake right after, then nothing, while it loads crown, block and
+            // upgrade icons. Reading the dialog says in one shot whether that is a paywall or
+            // a second step, instead of guessing between the two.
+            handler.postDelayed({
+                view.evaluateJavascript(MODAL_DUMP) { HanimeLog.log("PLAY modal  $it") }
+            }, MODAL_DELAY)
         }
         if (attempt < CLICK_ATTEMPTS) {
             handler.postDelayed({ clickPlay(view, attempt + 1) }, CLICK_INTERVAL)
@@ -274,6 +281,25 @@ class HanimeWebView(private val userAgent: String) {
 
         private const val DOM_DUMP = "document.documentElement.outerHTML"
         private const val DOWNLOAD_ATTEMPT = 3
+        private const val MODAL_DELAY = 2_500L
+
+        private const val MODAL_DUMP =
+            """(function () {
+                 var sel = '[role=dialog], dialog, [class*=modal], [class*=fixed][class*=z-]';
+                 var boxes = document.querySelectorAll(sel), best = null;
+                 for (var i = 0; i < boxes.length; i++) {
+                   var b = boxes[i], r = b.getBoundingClientRect();
+                   if (r.width > 120 && r.height > 60 && (b.innerText || '').trim()) best = b;
+                 }
+                 if (!best) return 'noDialog';
+                 var links = [];
+                 var as = best.querySelectorAll('a, button');
+                 for (var j = 0; j < as.length && links.length < 8; j++) {
+                   var t = (as[j].getAttribute('aria-label') || as[j].textContent || '').trim().slice(0, 24);
+                   if (t) links.push(t + (as[j].getAttribute('href') ? '->' + as[j].getAttribute('href') : ''));
+                 }
+                 return (best.innerText || '').replace(/\s+/g, ' ').slice(0, 320) + '  ||controls: ' + links.join(' ; ');
+               })();"""
 
         private const val CLICK_DOWNLOAD =
             """(function () {
@@ -342,7 +368,9 @@ class HanimeWebView(private val userAgent: String) {
                  var labels = [], dls = [];
                  for (var j = 0; j < btns.length; j++) {
                    var t = (btns[j].getAttribute('aria-label') || btns[j].textContent || '').trim().slice(0, 22);
-                   if (t && labels.length < 24) labels.push(t);
+                   // ⚠️ Personal data must NOT end up in a trace that gets pasted into a chat:
+                   // the user menu carries their username and email, and it did.
+                   if (t && labels.length < 24) labels.push(t.replace(/[\w.+-]+@[\w.-]+/g, '[email]').replace(/#\d{3,}/g, '#[id]'));
                    // The download control is the one thing on this page that can lead to a
                    // real address, so it is listed separately with its href.
                    if (/download|mp4/i.test(t) && dls.length < 4) {
@@ -371,7 +399,10 @@ class HanimeWebView(private val userAgent: String) {
                  var body = document.body ? document.body.innerText.slice(0, 160).replace(/\s+/g, ' ') : '';
                  // Whether the page still offers to sign in: the shortest answer to 'is this
                  // browser authenticated', which decides whether the download is even offered.
-                 r.push('signInOffered=' + /sign in|create account/i.test(document.body ? document.body.innerText : ''));
+                 // Signed in is read from 'Sign Out', not from the absence of 'Sign In': the
+                 // drawer offers both to a logged-in user, so the old check said the opposite
+                 // of the truth.
+                 r.push('signedIn=' + /sign out|logout/i.test(document.body ? document.body.innerText : ''));
                  r.push('text=' + body);
                  return r.join('  ');
                })();"""
