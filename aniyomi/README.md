@@ -1,4 +1,4 @@
-# Aniyomi: sorgente hanime.tv
+# Aniyomi: sorgente hanime.tv (`Hanime Roccobot` in app)
 
 Estensione **hanime.tv** per [Aniyomi](https://github.com/aniyomiorg/aniyomi), a **uso personale**:
 il repository e privato e l'APK non e distribuito, si installa a mano sul telefono

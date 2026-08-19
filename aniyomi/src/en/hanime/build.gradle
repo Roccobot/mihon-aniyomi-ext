@@ -1,7 +1,11 @@
 ext {
-    extName = 'hanime.tv'
+    // Label of the installed app ("Aniyomi: Hanime Roccobot"). The name shown in the
+    // app's source list is `name` in Hanime.kt: two separate places, to keep in step.
+    extName = 'Hanime Roccobot'
     extClass = '.Hanime'
-    extVersionCode = 1
+    // Bump on every build meant to replace an installed one: Android refuses an APK
+    // whose versionCode is not higher than the one already on the device.
+    extVersionCode = 2
     isNsfw = true
 }
 

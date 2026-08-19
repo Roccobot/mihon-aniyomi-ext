@@ -36,7 +36,10 @@ import uy.kohesive.injekt.api.get
  */
 class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
 
-    override val name = "hanime.tv"
+    // ⚠️ Changing this changes the source id, which Aniyomi derives from name, lang and
+    // API version: entries already in the library would be orphaned. Free now, because
+    // the source is new, not free later.
+    override val name = "Hanime Roccobot"
 
     override val baseUrl = "https://hanime.tv"
 
