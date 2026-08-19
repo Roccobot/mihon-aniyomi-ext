@@ -1,0 +1,73 @@
+name: Mihon - nhentai
+
+# Un workflow per ecosistema, perché i build sono separati: questo tocca solo mihon/.
+on:
+  push:
+    branches: [main]
+    paths: ['mihon/**', '.github/workflows/mihon-nhentai.yml']
+    tags: ['m*']
+  pull_request:
+    paths: ['mihon/**', '.github/workflows/mihon-nhentai.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Compila l'estensione Mihon
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: mihon
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # ⚠️ NIENTE `build-root-directory`: quell'input non esiste in questa azione e veniva
+      # ignorato in silenzio. La cartella di lavoro la fissa `defaults.run` qui sopra.
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      # Build di debug per scelta, come per l'altra estensione: una release vuole un keystore,
+      # e questa si installa a mano sul telefono.
+      - name: Build
+        run: ./gradlew :src:en:nhentai:assembleDebug --stacktrace
+
+      # ⚠️ La release è la STESSA `latest` dell'altra estensione, con un allegato dal nome
+      # diverso: due release separate vorrebbero due indirizzi da ricordare, e il tocco che
+      # scarica l'APK dal telefono è il momento in cui un indirizzo in più costa davvero.
+      # Per questo qui si tocca solo il proprio allegato e non si ripuliscono gli altri.
+      - name: Pubblica l'APK nella Release 'latest'
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          BUILT=$(ls src/en/nhentai/build/outputs/apk/debug/*.apk | head -1)
+          # ⚠️ NOME FISSO: `--clobber` sostituisce solo a parità di nome, e il nome prodotto dal
+          # build contiene la versione, quindi ogni build ne aggiungerebbe uno nuovo invece di
+          # sostituire quello vecchio.
+          cp "$BUILT" mihon-nhentai.apk
+          gh release view latest >/dev/null 2>&1 \
+            || gh release create latest --prerelease --title "Ultima build" \
+                 --notes "APK delle estensioni di questo repository."
+          gh release upload latest mihon-nhentai.apk --clobber
+
+      # Su tag: una Release che resta, per le versioni che vale la pena tenere. Il prefisso è
+      # `m` perché `v*` appartiene già ai tag dell'estensione Aniyomi.
+      - name: Pubblica la Release del tag
+        if: startsWith(github.ref, 'refs/tags/m')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes "APK dell'estensione nhentai per Mihon, build ${GITHUB_SHA}." \
+            src/en/nhentai/build/outputs/apk/debug/*.apk

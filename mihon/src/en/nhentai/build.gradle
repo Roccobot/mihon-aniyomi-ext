@@ -1,0 +1,12 @@
+ext {
+    // Label of the installed app ("Tachiyomi: nhentai Roccobot"). The name shown in the app's
+    // source list is `name` in NHentai.kt: two separate places, to keep in step.
+    extName = 'nhentai Roccobot'
+    extClass = '.NHentai'
+    // Bump on every build meant to replace an installed one: Android refuses an APK whose
+    // versionCode is not higher than the one already on the device.
+    extVersionCode = 1
+    isNsfw = true
+}
+
+apply from: "$rootDir/common.gradle"
