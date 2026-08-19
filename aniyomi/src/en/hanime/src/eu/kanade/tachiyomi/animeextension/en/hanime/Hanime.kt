@@ -161,7 +161,12 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
             url = anime.url
             title = (page.selectFirst("h1")?.text() ?: page.title()).baseTitle()
             thumbnail_url = page.selectFirst("meta[property=og:image]")?.attr("content")
+            // ⚠️ The site's meta description is pure SEO boilerplate ('Watch X 1 latest
+            // hentai online free download HD on mobile phone...'), not a synopsis: it is
+            // dropped rather than half-cleaned, because a stripped version would read like a
+            // real description while saying nothing.
             description = page.selectFirst("meta[name=description]")?.attr("content")
+                ?.takeUnless { SEO_DESCRIPTION.containsMatchIn(it) }
             status = SAnime.COMPLETED
             initialized = true
         }
@@ -183,10 +188,15 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
             .filter { (_, _, base) -> base.equals(group, ignoreCase = true) }
             .distinctBy { (slug, _, _) -> slug }
             .map { (slug, label, _) ->
+                val number = episodeNumber(label, slug)
                 SEpisode.create().apply {
                     url = "$VIDEO_PATH$slug"
-                    name = label
-                    episode_number = episodeNumber(label, slug)
+                    // Just the number, by the user's call (2026-08-19): the card text on this
+                    // site is a pile of duration, studio and badges ('Now Playing30:27 Master
+                    // Piece 1Pink P...'), and cleaning that case by case is a chase with no
+                    // end. What matters is that episodes are in order.
+                    name = EPISODE_LABEL.format(number)
+                    episode_number = number
                 }
             }
         // A page that lists no sibling is a one-shot: the entry itself is the episode.
@@ -194,7 +204,7 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
             listOf(
                 SEpisode.create().apply {
                     url = anime.url
-                    name = anime.title
+                    name = EPISODE_LABEL.format(1F)
                     episode_number = 1F
                 },
             )
@@ -328,7 +338,11 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
 
         // The shape of the site's SEO copy: 'Watch <name> <n> hentai online free...'.
         private val SEO_PREFIX = Regex("""^watch\s+""", RegexOption.IGNORE_CASE)
-        private val SEO_SUFFIX = Regex("""\s+hentai\b.*$""", RegexOption.IGNORE_CASE)
+        private val SEO_SUFFIX = Regex("""\s+(?:latest\s+|full\s+)?hentai\b.*$""", RegexOption.IGNORE_CASE)
+        private val SEO_DESCRIPTION = Regex("""hentai online free|watch .* hentai""", RegexOption.IGNORE_CASE)
+
+        /** Episodes are named by number alone: `01`, `02`, ... */
+        private const val EPISODE_LABEL = "%02.0f"
 
         private const val DEFAULT_UA =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36"

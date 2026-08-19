@@ -96,6 +96,19 @@ passo lascia una traccia in `HanimeLog`, e si legge in tre modi, dal piu comodo 
   quanto l'app, e un log illimitato sarebbe una perdita di memoria. Scrivere su file non puo
   far cadere la riproduzione: se la scrittura fallisce, si prosegue.
 
+## Nomi degli episodi: solo il numero
+
+**Gli episodi si chiamano `01`, `02`, `03`...** (scelta dell'utente, 2026-08-19: *si puo anche
+semplificare rinominandoli semplicemente come 01, 02, 03; l'importante e che siano in fila*).
+
+- ⚠️ **Non e pigrizia, e la via che smette di rincorrere il sito**: il testo delle schede
+  episodio e un impasto di durata, studio e badge di stato (`Now Playing30:27 Master Piece
+  1Pink P...`), e ogni ripulitura mirata a un caso ne lascia scoperto un altro. Il numero
+  invece si ricava dallo slug, che e pulito per costruzione.
+- **La descrizione della serie viene SCARTATA quando e testo SEO** (`Watch X 1 latest hentai
+  online free download HD...`): non e una sinossi, e una versione ripulita a meta sembrerebbe
+  una descrizione vera senza dire niente.
+
 ## Un'opera e una SERIE, non un video
 
 hanime.tv da a ogni episodio una pagina e uno slug propri, quindi senza raggruppamento una
