@@ -140,6 +140,28 @@ Le annotazioni giallo su una build verde sono avvisi, non errori, e valeva corre
   `upload-artifact`): la v4 gira su un runtime Node che GitHub ha dismesso e che per ora
   esegue forzatamente su quello nuovo.
 
+## Accesso: la sessione della WebView, e il cookie da passare al player
+
+Il **download della pagina e riservato agli utenti registrati**, anche non paganti (fatto
+riferito dall'utente, 2026-08-19), e su questa sorgente puo essere l'unica via al flusso.
+Quindi l'accesso si fa **dalla WebView dell'app** e da li la sessione si propaga.
+
+- ⚠️⚠️ **Il cookie va passato ESPLICITAMENTE al player, e questo era il pezzo mancante**: il
+  player di Aniyomi non parla attraverso la WebView, usa il client http dell'estensione, che
+  non sa nulla della sessione creata accedendo. Un indirizzo riservato ai registrati,
+  consegnato senza cookie, risponde 403. Ora l'intestazione `Cookie` viene aggiunta al video
+  se non c'e gia.
+- ⚠️ **Il download NON arriva come sottorisorsa**: un link che scarica passa dal
+  `DownloadListener` della WebView, non da `shouldInterceptRequest`. Senza quel listener
+  l'unico indirizzo che il sito offre davvero non si vedrebbe mai.
+- I cookie di sessione si accettano esplicitamente (`setAcceptCookie`,
+  `setAcceptThirdPartyCookies`): sono le due righe che fanno vedere a questa WebView la
+  sessione creata nell'altra.
+- ⚠️⚠️ **Nella traccia finiscono i NOMI dei cookie, mai i valori**: il registro si incolla in
+  chat, e un token di sessione la dentro sarebbe una password regalata. I nomi bastano a
+  rispondere alla sola domanda utile, cioe se una sessione esiste. L'inventario dice anche
+  `signInOffered`, che e la risposta piu corta a 'questo browser e autenticato?'.
+
 ## Nomi degli episodi: solo il numero
 
 **Gli episodi si chiamano `01`, `02`, `03`...** (scelta dell'utente, 2026-08-19: *si puo anche

@@ -5,6 +5,7 @@ import android.app.Application
 import android.os.Handler
 import android.os.Looper
 import android.webkit.ConsoleMessage
+import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -128,6 +129,16 @@ class HanimeWebView(private val userAgent: String) {
                     clickPlay(view, 1)
                 }
             }
+            // ⚠️ A page download does NOT arrive as a subresource: a link that downloads
+            // hands the url to this listener instead, so without it the one address the site
+            // actually offers would never be seen.
+            view.setDownloadListener { downloadUrl, agent, _, mime, size ->
+                HanimeLog.log("PLAY dlurl  $mime $size $downloadUrl")
+                if (found == null) {
+                    found = downloadUrl to mapOf("User-Agent" to agent)
+                    latch.countDown()
+                }
+            }
             view.loadUrl(url)
         }
 
@@ -185,6 +196,23 @@ class HanimeWebView(private val userAgent: String) {
         poll()
     }
 
+    /**
+     * The names of the cookies this app's browser holds for [url], never their values: the
+     * trace gets pasted into a chat, and a session token in there would be a password given
+     * away. The names alone answer the only question that matters, whether a session exists.
+     */
+    fun cookieNames(url: String): String =
+        CookieManager.getInstance().getCookie(url)
+            ?.split(';')
+            ?.joinToString(",") { it.substringBefore('=').trim() }
+            ?: "none"
+
+    /**
+     * The raw cookie header for [url], to hand to the player. ⚠️ It carries the session
+     * token, so it is used and never logged: [cookieNames] is the loggable half.
+     */
+    fun cookieHeader(url: String): String? = CookieManager.getInstance().getCookie(url)
+
     @SuppressLint("SetJavaScriptEnabled")
     private fun newWebView(): WebView = WebView(context).apply {
         settings.javaScriptEnabled = true
@@ -193,6 +221,10 @@ class HanimeWebView(private val userAgent: String) {
         // Not a trick: it is the switch that lets a page start its own video without a tap,
         // which is what makes the player ask for its stream.
         settings.mediaPlaybackRequiresUserGesture = false
+        // The session the user created by signing in from the app's WebView lives in the
+        // shared cookie jar: these two lines are what let this view see it.
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
         webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(message: ConsoleMessage): Boolean {
                 // The site's own errors explain most silent failures ('not signed in',
@@ -326,6 +358,9 @@ class HanimeWebView(private val userAgent: String) {
                  var slot = document.querySelector('[class*=h-\\[280px\\]], [class*=aspect], main div');
                  r.push('slot=' + (slot ? (slot.tagName + '.' + String(slot.className).slice(0, 40) + ' >> ' + slot.innerHTML.replace(/\s+/g, ' ').slice(0, 220)) : 'none'));
                  var body = document.body ? document.body.innerText.slice(0, 160).replace(/\s+/g, ' ') : '';
+                 // Whether the page still offers to sign in: the shortest answer to 'is this
+                 // browser authenticated', which decides whether the download is even offered.
+                 r.push('signInOffered=' + /sign in|create account/i.test(document.body ? document.body.innerText : ''));
                  r.push('text=' + body);
                  return r.join('  ');
                })();"""

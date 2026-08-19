@@ -212,6 +212,7 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
+        HanimeLog.log("PLAY session cookies: ${webView.cookieNames(baseUrl)}")
         val result = webView.interceptMedia(baseUrl + episode.url, MEDIA_URL)
         // ⚠️ The failure message carries what the page actually requested: without it, 'no
         // stream found' is unfixable, since this side has no way to watch the site itself.
@@ -224,6 +225,14 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
             requestHeaders.forEach { (key, value) -> add(key, value) }
             if (requestHeaders.keys.none { it.equals("Referer", ignoreCase = true) }) {
                 add("Referer", "$baseUrl/")
+            }
+            // ⚠️⚠️ THE COOKIE HAS TO BE PASSED ON, and this is the piece that was missing:
+            // Aniyomi's player does not talk through the WebView, it uses this extension's
+            // http client, which knows nothing of the session created by signing in. On a
+            // site where the download is for registered users only, an address handed over
+            // without the cookie is an address that answers 403.
+            if (requestHeaders.keys.none { it.equals("Cookie", ignoreCase = true) }) {
+                webView.cookieHeader(url)?.let { add("Cookie", it) }
             }
         }.build()
         HanimeLog.log("PLAY handing to player: ${url.qualityLabel()} $url")
