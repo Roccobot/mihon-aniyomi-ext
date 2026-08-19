@@ -38,8 +38,20 @@ con la sessione dell'utente, e l'estensione legge il risultato (vedi `HanimeWebV
 - ⚠️⚠️ **Gli elenchi si leggono per INDIRIZZO, mai per classe CSS**: ogni scheda linka a
   `/videos/hentai/<slug>`, che e l'indirizzo pubblico delle pagine e sopravvive a un
   restyling; i nomi di classe no, e indovinarli e l'errore che ha fatto naufragare la prima
-  versione. Titolo e copertina si prendono da `title`, `alt` e `img` dentro il link, con
-  ripiego sullo slug.
+  versione.
+- ⚠️⚠️ **Il titolo si prende dal TESTO della scheda, e gli attributi solo come ripiego**
+  (misurato sul dispositivo, 2026-08-19): `title` e `alt` portano il testo SEO del sito
+  ('Watch Momone 1 hentai online...'), e leggendo quelli per primi le voci si chiamavano
+  davvero `Watch ...`. Peggio: il numero in quella stringa sta **in mezzo**, quindi la
+  regola di raggruppamento non trovava niente da togliere e ogni episodio restava una voce a
+  se. Un `stripSeo` disfa comunque l'involucro quando l'etichetta arriva da un attributo.
+- ⚠️⚠️ **Gli episodi fratelli si riconoscono dallo SLUG, non dal titolo**: `momone-1` e
+  `momone-2` condividono la base per costruzione, mentre i titoli possono arrivare avvolti
+  nel testo SEO. E' la stessa regola che hai chiesto (parte pre-numero identica), applicata
+  al dato pulito.
+- ⚠️ **Quando non trova nessun flusso, l'errore dice che cosa il player ha chiesto** (le
+  ultime richieste non statiche): senza quell'elenco 'nessun flusso trovato' non e
+  correggibile, perche da qui il sito non e osservabile.
 - ⚠️ **Il DOM si aspetta con un polling, non con `onPageFinished`**: il sito rende le liste
   **dopo** che la pagina risulta 'finita', quindi quel callback scatta troppo presto.
 - **La risoluzione non si chiede**: si prende la piu alta disponibile, con la preferenza del
@@ -48,9 +60,13 @@ con la sessione dell'utente, e l'estensione legge il risultato (vedi `HanimeWebV
   tocca da un thread di lavoro, mentre le sorgenti sono chiamate da thread IO. Da qui
   l'`Handler` piu il latch, e il timeout su ogni ingresso.
 - **I tre indirizzi delle pagine sono CONFERMATI dall'utente sul sito** (2026-08-19), non
-  dedotti: `hanime.tv/browse` per l'esplorazione, la **home** per gli ultimi arrivi, e
+  dedotti: la **home** per gli ultimi arrivi e
   `hanime.tv/search?q=<parola>&order=created_at_desc` per la ricerca. ⚠️ Il parametro e `q`
   e **non** `query`, che e l'ipotesi con cui era nata la prima versione.
+- ⚠️ **`hanime.tv/browse` NON va bene per i popolari**, misurato sul dispositivo: e un indice
+  di **categorie** e non contiene link a video, quindi l'elenco tornava vuoto. Al suo posto
+  la pagina di ricerca ordinata per visualizzazioni, e `views_desc` e il solo valore ancora
+  da confermare.
 - **Niente paginazione, per ora**: il sito pagina scorrendo, e un numero di pagina che
   questa sorgente non puo verificare sarebbe una promessa non mantenuta.
 

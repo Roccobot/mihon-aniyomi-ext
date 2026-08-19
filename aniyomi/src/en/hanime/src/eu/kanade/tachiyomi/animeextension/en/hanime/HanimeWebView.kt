@@ -73,8 +73,9 @@ class HanimeWebView(private val userAgent: String) {
         url: String,
         waitFor: Regex,
         timeoutMs: Long = DEFAULT_TIMEOUT,
-    ): Pair<String, Map<String, String>>? {
+    ): MediaResult {
         var found: Pair<String, Map<String, String>>? = null
+        val seen = mutableListOf<String>()
         val latch = CountDownLatch(1)
         var webView: WebView? = null
 
@@ -87,6 +88,12 @@ class HanimeWebView(private val userAgent: String) {
                     request: WebResourceRequest,
                 ): WebResourceResponse? {
                     val candidate = request.url.toString()
+                    // ⚠️ Everything not obviously static is kept, and it is not book-keeping
+                    // for its own sake: when no stream turns up, this list is the only way to
+                    // learn what the player DID ask for, and the next fix is read from it.
+                    if (seen.size < MAX_SEEN && !STATIC_ASSET.containsMatchIn(candidate)) {
+                        seen += candidate
+                    }
                     if (found == null && waitFor.containsMatchIn(candidate)) {
                         found = candidate to request.requestHeaders
                         latch.countDown()
@@ -108,8 +115,14 @@ class HanimeWebView(private val userAgent: String) {
 
         latch.await(timeoutMs, TimeUnit.MILLISECONDS)
         destroy(webView)
-        return found
+        return MediaResult(found, seen.toList())
     }
+
+    /** [hit] is the stream when there is one; [seen] is what the page asked for either way. */
+    class MediaResult(
+        val hit: Pair<String, Map<String, String>>?,
+        val seen: List<String>,
+    )
 
     private fun pollDom(view: WebView, waitFor: Regex, latch: CountDownLatch, onFound: (String) -> Unit) {
         var attempts = 0
@@ -166,6 +179,10 @@ class HanimeWebView(private val userAgent: String) {
         const val DEFAULT_TIMEOUT = 30_000L
         private const val POLL_INTERVAL = 400L
         private const val MAX_POLLS = 60
+        private const val MAX_SEEN = 60
+
+        private val STATIC_ASSET =
+            Regex("""\.(png|jpe?g|webp|gif|svg|ico|css|woff2?|ttf|js)(\?|$)""", RegexOption.IGNORE_CASE)
 
         private const val DOM_DUMP = "document.documentElement.outerHTML"
         private const val CLICK_PLAY =
