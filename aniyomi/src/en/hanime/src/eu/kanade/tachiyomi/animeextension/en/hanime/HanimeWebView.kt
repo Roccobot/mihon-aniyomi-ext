@@ -134,12 +134,30 @@ class HanimeWebView(private val userAgent: String) {
                         // download control may hand the file host to `window.open`, and without
                         // this hook that address stays invisible from here.
                         view.evaluateJavascript(HOOK_WINDOW_OPEN, null)
-                        view.evaluateJavascript(DOM_INVENTORY) { HanimeLog.log("PLAY dom    $it") }
-                        clickPlay(view, 1) { external ->
+                        val onExternal: (String) -> Unit = { external ->
                             if (found == null) {
                                 HanimeLog.log("PLAY external found: $external")
                                 found = external to emptyMap()
                                 latch.countDown()
+                            }
+                        }
+                        // ⚠️ The inventory DECIDES, it is not just logged: on this site an
+                        // episode page carries no player at all, so the three play clicks were
+                        // three tries at an element that does not exist, and they cost 8
+                        // seconds of the 14,7 the whole run took (trace of 2026-08-19: first
+                        // click at 28.3, download click at 36.3, address in hand at 39.8).
+                        // Worse than slow, they were not harmless: with no play button to
+                        // match, the filter fell on a generic container whose text happened to
+                        // carry the word, and clicked that. The page is left alone instead.
+                        view.evaluateJavascript(DOM_INVENTORY) { inventory ->
+                            HanimeLog.log("PLAY dom    $inventory")
+                            val noPlayer = NO_PLAYER.containsMatchIn(inventory)
+                            val hasDownload = !inventory.contains("downloadCandidates=none")
+                            if (noPlayer && hasDownload) {
+                                HanimeLog.log("PLAY skip   no player on the page, straight to download")
+                                downloadFlow(view, onExternal)
+                            } else {
+                                clickPlay(view, 1, onExternal)
                             }
                         }
                     }, SETTLE_DELAY)
@@ -189,32 +207,42 @@ class HanimeWebView(private val userAgent: String) {
         view.evaluateJavascript(CLICK_PLAY) { outcome ->
             HanimeLog.log("PLAY click$attempt $outcome")
         }
-        if (attempt == DOWNLOAD_ATTEMPT) {
-            // The snapshot has to be taken BEFORE the click, or there is nothing to compare the
-            // page against afterwards.
-            view.evaluateJavascript(SNAPSHOT_TEXT, null)
-            view.evaluateJavascript(CLICK_DOWNLOAD) { outcome ->
-                HanimeLog.log("PLAY dl     $outcome")
-            }
-            // Step two: pick a Pixeldrain option, never the crowned Premium one.
-            handler.postDelayed({
-                view.evaluateJavascript(CLICK_OPTION) { HanimeLog.log("PLAY option $it") }
-            }, OPTION_DELAY)
-            // Step three, read instead of clicked: the address is in the panel's text. Sampled
-            // more than once because the panel appears after the site's own handshake.
-            listOf(1_500L, 4_000L, 8_000L).forEach { delay ->
-                handler.postDelayed({
-                    view.evaluateJavascript(FIND_EXTERNAL_URL) { raw ->
-                        val url = raw.trim('"').replace("\\/", "/").replace("\\\"", "")
-                        HanimeLog.log("PLAY url?   $url")
-                        if (url.startsWith("http")) onExternal(url)
-                    }
-                    view.evaluateJavascript(MODAL_DUMP) { HanimeLog.log("PLAY panel  $it") }
-                }, OPTION_DELAY + delay)
-            }
-        }
+        if (attempt == DOWNLOAD_ATTEMPT) downloadFlow(view, onExternal)
         if (attempt < CLICK_ATTEMPTS) {
             handler.postDelayed({ clickPlay(view, attempt + 1, onExternal) }, CLICK_INTERVAL)
+        }
+    }
+
+    /**
+     * The three steps of the site's own download flow, from the click to the address in hand.
+     *
+     * ⚠️ It lives in a function of its own so it can start WITHOUT the play clicks: on a page
+     * with no player those clicks find nothing, and waiting for the third one only delays this
+     * by 8 seconds. [clickPlay] still calls it on its [DOWNLOAD_ATTEMPT] for the pages that do
+     * carry a player, where trying to play comes first and this is the fallback.
+     */
+    private fun downloadFlow(view: WebView, onExternal: (String) -> Unit) {
+        // The snapshot has to be taken BEFORE the click, or there is nothing to compare the
+        // page against afterwards.
+        view.evaluateJavascript(SNAPSHOT_TEXT, null)
+        view.evaluateJavascript(CLICK_DOWNLOAD) { outcome ->
+            HanimeLog.log("PLAY dl     $outcome")
+        }
+        // Step two: pick a Pixeldrain option, never the crowned Premium one.
+        handler.postDelayed({
+            view.evaluateJavascript(CLICK_OPTION) { HanimeLog.log("PLAY option $it") }
+        }, OPTION_DELAY)
+        // Step three, read instead of clicked: the address is in the panel's text. Sampled
+        // more than once because the panel appears after the site's own handshake.
+        listOf(1_500L, 4_000L, 8_000L).forEach { delay ->
+            handler.postDelayed({
+                view.evaluateJavascript(FIND_EXTERNAL_URL) { raw ->
+                    val url = raw.trim('"').replace("\\/", "/").replace("\\\"", "")
+                    HanimeLog.log("PLAY url?   $url")
+                    if (url.startsWith("http")) onExternal(url)
+                }
+                view.evaluateJavascript(MODAL_DUMP) { HanimeLog.log("PLAY panel  $it") }
+            }, OPTION_DELAY + delay)
         }
     }
 
@@ -312,6 +340,17 @@ class HanimeWebView(private val userAgent: String) {
 
         private const val DOM_DUMP = "document.documentElement.outerHTML"
         private const val DOWNLOAD_ATTEMPT = 3
+
+        /**
+         * The head of the inventory when the page carries no player of any kind, which on this
+         * site is every episode page.
+         *
+         * ⚠️ It matches the three counters TOGETHER and not `video=0` on its own: that string
+         * also turns up further along the same line, in the shadow-root list, where every
+         * `iconify-icon` reports `video=0`. Matching the loose form would have read 'no player'
+         * off a page that has one.
+         */
+        private val NO_PLAYER = Regex("""video=0\s+iframe=0\s+canvas=0""")
 
         private const val OPTION_DELAY = 2_000L
 
