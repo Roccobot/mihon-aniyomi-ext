@@ -84,8 +84,9 @@ con la sessione dell'utente, e l'estensione legge il risultato (vedi `HanimeWebV
   e **non** `query`, che è l'ipotesi con cui era nata la prima versione.
 - ⚠️ **`hanime.tv/browse` NON va bene per i popolari**, misurato sul dispositivo: è un indice
   di **categorie** e non contiene link a video, quindi l'elenco tornava vuoto. Al suo posto
-  la pagina di ricerca ordinata per visualizzazioni, e `views_desc` è il solo valore ancora
-  da confermare.
+  la pagina di ricerca ordinata per visualizzazioni. ✅ **`views_desc` è confermato** dalla
+  traccia del 2026-08-19: la pagina risponde con 17 voci ordinate per visualizzazioni, e la
+  home ne dà 63.
 - **Niente paginazione, per ora**: il sito pagina scorrendo, e un numero di pagina che
   questa sorgente non può verificare sarebbe una promessa non mantenuta.
 
@@ -114,8 +115,26 @@ passo lascia una traccia in `HanimeLog`, e si legge in tre modi, dal più comodo
   parte dei fallimenti silenziosi: 'non autenticato', handshake rifiutato), l'esito di ogni
   tentativo di avvio del player (elemento trovato, `paused`, `readyState`, numero di iframe) e
   **l'indirizzo che viene passato al player** di Aniyomi.
-- **Il clic su Play si ritenta cinque volte** a distanza di 2,5 secondi: il player viene
-  montato dopo che la pagina si è assestata, quindi un tentativo solo arriva troppo presto.
+- ⚠️⚠️ **I clic su Play NON si fanno più quando la pagina non ha un player, e su questo sito
+  non ce l'ha mai** (dalla `extVersionCode` 22, deciso sulla traccia del 2026-08-19). È
+  l'**inventario** a decidere: se conta zero `video`, zero `iframe` e zero `canvas` e trova il
+  tasto di download, si va dritti al flusso di download. Il ramo coi clic resta per le pagine
+  che un player ce l'hanno davvero.
+  - **Quanto costavano, misurato**: nella traccia il primo clic parte a `28.3`, il download
+    parte a `36.3` e l'indirizzo è in mano a `39.8`. Otto secondi su quattordici e mezzo
+    servivano ad aspettare il terzo tentativo di una cosa che non poteva riuscire.
+  - ⚠️ **E non erano innocui**: senza nessun pulsante Play da agganciare, il filtro cadeva su un
+    contenitore generico il cui testo conteneva la parola, e lo cliccava
+    (`clicked=DIV.relative h-[280px] w-dvw overflow-y-auto`, tre volte). La nota che diceva
+    'nessun clic di ripiego su contenitori generici' descriveva l'intenzione del codice, non
+    quello che faceva: il ripiego esplicito era stato tolto, ma il filtro per parola lo
+    rimetteva dalla finestra.
+  - ⚠️ **Il riconoscimento si fa sui TRE contatori insieme** (`video=0 iframe=0 canvas=0`), mai
+    sul solo `video=0`: quella stringa ricompare più avanti nella stessa riga, nell'elenco degli
+    shadow root, dove ogni `iconify-icon` dichiara `video=0`. Col confronto largo si leggerebbe
+    'nessun player' su una pagina che ce l'ha.
+- **Dove i clic servono ancora, si ritentano tre volte** a distanza di 4 secondi: il player
+  viene montato dopo che la pagina si è assestata, quindi un tentativo solo arriva troppo presto.
 - ⚠️⚠️ **`[class*=play]` NON si usa per trovare il pulsante Play**, e la traccia lo ha
   dimostrato: quel selettore combacia anche con **`playlist`**, di cui la pagina è piena,
   quindi i cinque tentativi cliccavano una voce della playlist **dichiarando successo**. Ora
@@ -176,6 +195,12 @@ L'utente ha fotografato i passaggi, e sono **tre**, non uno:
 
 - ⚠️⚠️ **La sorgente si ferma al passo DUE**: l'indirizzo si legge dal testo, senza acconsentire
   a niente e senza toccare il flusso del sito.
+- **I due secondi di attesa fra il primo e il secondo clic HANNO TENUTO**, misurato: nella
+  traccia del 2026-08-19 l'opzione giusta è stata presa al primo colpo
+  (`clicked=Pixeldrain MP4720p`), e l'indirizzo è comparso 1,5 secondi dopo. ⚠️ **Ma di quanto
+  margine, non si sa**: la traccia dice che a 2 secondi l'elenco era pronto, non quando lo è
+  diventato. Il segnale da cercare se un domani il sito rallenta resta `noPixeldrainOption`, e
+  la risposta è allungare quell'attesa.
 - ⚠️⚠️ **Ecco perché tutte le tracce precedenti tornavano a mani vuote**: quelle opzioni sono
   **pulsanti senza `href`**, quindi una scansione delle ancore non poteva vederle, e il pannello
   non è un `dialog`, quindi nemmeno la ricerca di dialoghi lo trovava. Non mancava un tentativo:
