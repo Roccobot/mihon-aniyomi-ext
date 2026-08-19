@@ -295,7 +295,17 @@ class HanimeWebView(private val userAgent: String) {
                    var b = boxes[i], r = b.getBoundingClientRect();
                    if (r.width > 120 && r.height > 60 && (b.innerText || '').trim()) best = b;
                  }
-                 if (!best) return 'noDialog  ||opened=' + (window.__hanimeOpened || 'none');
+                 // The external links present AFTER the click, wherever they are: the address
+                 // the site offers may be added to the page instead of to a dialog.
+                 var ext = [];
+                 var anchors = document.querySelectorAll('a[href]');
+                 for (var k = 0; k < anchors.length && ext.length < 6; k++) {
+                   var h = anchors[k].getAttribute('href') || '';
+                   if (/^https?:/i.test(h) && h.indexOf('hanime.tv') < 0) ext.push(h.slice(0, 90));
+                 }
+                 var tail = '  ||external: ' + (ext.length ? ext.join(' ; ') : 'none') +
+                            '  ||opened=' + (window.__hanimeOpened || 'none');
+                 if (!best) return 'noDialog' + tail;
                  var links = [];
                  var as = best.querySelectorAll('a, button');
                  for (var j = 0; j < as.length && links.length < 8; j++) {
@@ -303,8 +313,7 @@ class HanimeWebView(private val userAgent: String) {
                    if (t) links.push(t + (as[j].getAttribute('href') ? '->' + as[j].getAttribute('href') : ''));
                  }
                  return (best.innerText || '').replace(/\s+/g, ' ').slice(0, 320) +
-                        '  ||controls: ' + links.join(' ; ') +
-                        '  ||opened=' + (window.__hanimeOpened || 'none');
+                        '  ||controls: ' + links.join(' ; ') + tail;
                })();"""
 
         /**
@@ -425,6 +434,16 @@ class HanimeWebView(private val userAgent: String) {
                  // drawer offers both to a logged-in user, so the old check said the opposite
                  // of the truth.
                  r.push('signedIn=' + /sign out|logout/i.test(document.body ? document.body.innerText : ''));
+                 // ⚠️ Restriction is a matter of VISIBILITY, not of presence: this element sits
+                 // in the markup of every page and CSS decides whether it shows. Asking the
+                 // html instead declared every title restricted, `the-pianist-1` included.
+                 var notice = document.querySelector('#RestrictedVideoNotice, .restricted-video-notice');
+                 var noticeShown = false;
+                 if (notice) {
+                   var nr = notice.getBoundingClientRect();
+                   noticeShown = !!notice.offsetParent && nr.height > 10 && nr.width > 10;
+                 }
+                 r.push('restrictedVisible=' + noticeShown);
                  r.push('text=' + body);
                  return r.join('  ');
                })();"""

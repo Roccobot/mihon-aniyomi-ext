@@ -227,19 +227,12 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
 
         // First and cheapest: the rendered page, with no clicking at all.
         val html = webView.renderedHtml(baseUrl + episode.url, VIDEO_LINK)
-        // ⚠️ A RESTRICTED title has neither player nor download link, and reporting 'no video
-        // found' for it would blame this extension for the site's own decision. Where the
-        // player would sit, such a page carries a `RestrictedVideoNotice`: measured on
-        // `uchi-no-otouto-...-1`, whose only external links were Discord and an ad, and whose
-        // page had just asked the site for `country_code`.
-        if (RESTRICTED_NOTICE.containsMatchIn(html)) {
-            HanimeLog.log("PLAY restricted: the page shows RestrictedVideoNotice")
-            throw Exception(
-                "This title is restricted on hanime.tv: its page shows a 'restricted video' " +
-                    "notice instead of a player, so the site offers neither a stream nor a " +
-                    "download link for it. Another title will work.",
-            )
-        }
+        // ⚠️⚠️ NO restriction check on the RAW HTML, and this is a defect that already cost a
+        // release: `RestrictedVideoNotice` is in the markup of EVERY page, hidden by CSS, and
+        // only *shown* when a title is unavailable. Searching the html for it declared every
+        // page restricted, including `the-pianist-1`, which the user had verified working. If
+        // the question comes back, it has to be answered on VISIBILITY, in the page, not on the
+        // presence of a string.
         val page = Jsoup.parse(html, baseUrl)
         val external = page.select("a[href]")
             .map { it.attr("abs:href") }
@@ -395,7 +388,6 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
         private val PIXELDRAIN_PAGE = Regex("""pixeldrain\.(?:net|com)/u/([A-Za-z0-9]+)""")
 
         // The element the site puts where the player would be, when a title is not available.
-        private val RESTRICTED_NOTICE = Regex("""RestrictedVideoNotice|restricted-video-notice""")
 
         // ⚠️ ARABIC digits only, and only at the very end: titles carry roman numerals as
         // part of the name ('Anime Titolo III'), and a greedier pattern would merge three

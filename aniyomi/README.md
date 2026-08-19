@@ -142,12 +142,16 @@ pagina**.
   link compaia dopo l'uso del controllo di download.
 - Se il link manca, l'errore lo dice in chiaro: **accedi dal tasto WebView**, perche e la
   sessione a fare comparire l'indirizzo.
-- ⚠️⚠️ **Alcuni titoli sono SOGGETTI A RESTRIZIONE, e non e un difetto della sorgente**: al
-  posto del player la loro pagina porta un `RestrictedVideoNotice`, e allora non esistono ne
-  flusso ne link di download. Misurato su `uchi-no-otouto-...-1`, i cui soli link esterni erano
-  Discord e un banner, e la cui pagina aveva appena chiesto `country_code` al sito. L'errore
-  lo dice: attribuire quel caso all'estensione sarebbe dare la colpa a lei per una decisione
-  del sito.
+- **Alcuni titoli sono soggetti a RESTRIZIONE** e non hanno ne player ne link: al posto del
+  player la pagina *mostra* un `RestrictedVideoNotice`. Misurato su `uchi-no-otouto-...-1`, i
+  cui soli link esterni erano Discord e un banner, e la cui pagina aveva appena chiesto
+  `country_code` al sito.
+- ⚠️⚠️ **MA quella verifica NON si fa sull'HTML, ed e un difetto che e costato una release**:
+  `RestrictedVideoNotice` sta nel markup di **ogni** pagina, nascosto dal CSS, e viene solo
+  *mostrato* quando il titolo non e disponibile. Cercarne la stringa nell'html dichiarava
+  bloccata ogni pagina, `the-pianist-1` compreso, che l'utente aveva verificato funzionante. La
+  domanda si risolve solo sulla **visibilita**, dentro la pagina (`restrictedVisible` nella
+  traccia), e per questo il blocco preventivo e stato tolto: si prosegue e si guardano i link.
 - ⚠️ **Un link aperto in una SCHEDA NUOVA non e un'ancora nel DOM**: se il controllo di
   download passa l'host esterno a `window.open`, dal codice non si vedrebbe nulla. Quella
   funzione e agganciata per **registrare** l'indirizzo e poi lasciarla proseguire: si osserva,
