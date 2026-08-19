@@ -54,12 +54,12 @@ con la sessione dell'utente, e l'estensione legge il risultato (vedi `HanimeWebV
   correggibile, perche da qui il sito non e osservabile.
 - ⚠️ **Il DOM si aspetta con un polling, non con `onPageFinished`**: il sito rende le liste
   **dopo** che la pagina risulta 'finita', quindi quel callback scatta troppo presto.
-- **La risoluzione non si chiede**: si prende la piu alta disponibile, con la preferenza del
-  pannello in cima a parita di disponibilita. ⚠️⚠️ **Il 1080p NON e fra le scelte**, per
-  decisione dell'utente (2026-08-19): su questo sito e riservato agli abbonati, quindi
-  offrirlo su un account gratuito e una promessa che la sorgente non puo mantenere. Lo scopo
-  dell'estensione e la comodita di guardare da Aniyomi, non sbloccare cio che l'account non
-  comprende. Le scelte sono 720p (predefinita), 480p e 360p.
+- ⚠️⚠️ **La qualita e FISSA a 720p, e non e una preferenza** (decisione dell'utente,
+  2026-08-19: *non servono opzioni per l'estensione*): il 1080p su questo sito appartiene agli
+  abbonati, quindi offrirlo sarebbe una promessa che la sorgente non puo mantenere, e le altre
+  risoluzioni non sono una scelta che valga un'impostazione. Se il 720p non c'e, vince **la
+  prima utile**, dalla piu alta in giu. Nelle impostazioni resta il solo interruttore del
+  registro di debug, che e diagnostica e nasce spento.
 - ⚠️⚠️ **Le credenziali NON stanno nel codice, e non e una dimenticanza**: l'accesso si fa
   **dalla WebView dell'app** (tasto `WebView` nella scheda), e da quel momento il cookie di
   sessione vive nel browser di Aniyomi e l'estensione lo eredita. Una parola d'ordine scritta
@@ -128,6 +128,17 @@ Prima traccia raccolta sul dispositivo, e nega l'ipotesi da cui era partita la v
 - ⚠️ **il catalogo passa da un host nuovo**, `guest.freeanimehentai.net/api/v11/search_hvs`,
   con un **GET**: il `guest.` nel nome dice che esiste una via da ospite, e questo era
   sconosciuto quando la sorgente e stata scritta.
+
+## Il workflow e le azioni che GitHub segnala
+
+Le annotazioni giallo su una build verde sono avvisi, non errori, e valeva correggerle:
+
+- ⚠️ **`build-root-directory` NON esiste in `setup-gradle`**, e veniva ignorato in silenzio
+  (`Unexpected input(s)` nel run): la cartella di lavoro la fissa `defaults.run`, che e cio
+  che conta davvero. Toglierlo evita di credere che quel parametro faccia qualcosa.
+- Le azioni sono passate alla **v5** (`checkout`, `setup-java`, `setup-gradle`,
+  `upload-artifact`): la v4 gira su un runtime Node che GitHub ha dismesso e che per ora
+  esegue forzatamente su quello nuovo.
 
 ## Nomi degli episodi: solo il numero
 

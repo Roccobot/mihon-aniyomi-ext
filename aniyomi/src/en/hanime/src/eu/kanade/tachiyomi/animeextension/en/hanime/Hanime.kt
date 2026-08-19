@@ -2,7 +2,6 @@ package eu.kanade.tachiyomi.animeextension.en.hanime
 
 import android.app.Application
 import android.content.SharedPreferences
-import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
@@ -231,26 +230,18 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
         return listOf(Video(url, url.qualityLabel(), url, built))
     }
 
-    // Highest resolution first, with the preferred one on top when it is there: the choice
-    // is never asked, as for the other Roccobot downloaders.
-    override fun List<Video>.sort(): List<Video> {
-        val preferred = preferences.getString(PREF_QUALITY_KEY, PREF_QUALITY_DEFAULT)!!
-        return sortedWith(
-            compareByDescending<Video> { it.quality == preferred }
-                .thenByDescending { it.quality.height() },
-        )
-    }
+    /**
+     * 720p first, then whatever else is there, highest to lowest. No setting, by the user's
+     * call (2026-08-19): on this site 1080p belongs to paying members, and every other choice
+     * is one nobody would make twice. When 720p is missing the first usable stream wins,
+     * which is what a fallback means here.
+     */
+    override fun List<Video>.sort(): List<Video> = sortedWith(
+        compareByDescending<Video> { it.quality == PREFERRED_QUALITY }
+            .thenByDescending { it.quality.height() },
+    )
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        ListPreference(screen.context).apply {
-            key = PREF_QUALITY_KEY
-            title = "Preferred quality"
-            entries = QUALITIES
-            entryValues = QUALITIES
-            setDefaultValue(PREF_QUALITY_DEFAULT)
-            summary = "%s"
-        }.also(screen::addPreference)
-
         SwitchPreferenceCompat(screen.context).apply {
             key = PREF_LOG_KEY
             title = "Write the debug log to a file"
@@ -347,13 +338,10 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
         private const val DEFAULT_UA =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36"
 
-        // ⚠️ NO 1080p, deliberately (user's call, 2026-08-19): on this site that resolution
-        // is reserved for paying members, so offering it on a free account is a promise the
-        // source cannot keep, and the point of this extension is convenience, not unlocking
-        // what an account does not include.
-        private val QUALITIES = arrayOf("720p", "480p", "360p")
-        private const val PREF_QUALITY_KEY = "preferred_quality"
-        private const val PREF_QUALITY_DEFAULT = "720p"
+        // ⚠️ Fixed, and NOT a preference: 1080p on this site belongs to paying members, so
+        // offering it would be a promise the source cannot keep, and the remaining values are
+        // not a choice worth a setting. 720p when it exists, otherwise the first usable one.
+        private const val PREFERRED_QUALITY = "720p"
         private const val PREF_LOG_KEY = "log_to_file"
 
         private const val DEBUG_QUERY = "debug"

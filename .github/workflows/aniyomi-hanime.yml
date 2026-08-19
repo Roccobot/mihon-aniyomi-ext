@@ -22,18 +22,19 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
+      # ⚠️ NO `build-root-directory` here: that input does not exist in this action and was
+      # silently ignored, which the run reported as 'Unexpected input(s)'. The working
+      # directory is already set by `defaults.run` above, which is what actually matters.
       - name: Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          build-root-directory: aniyomi
+        uses: gradle/actions/setup-gradle@v5
 
       # Build di debug per scelta: una release vuole un keystore, e questa estensione si
       # installa a mano su un telefono. L'unica differenza pratica e che Aniyomi chiede
@@ -42,7 +43,7 @@ jobs:
         run: ./gradlew :src:en:hanime:assembleDebug --stacktrace
 
       - name: Raccogli l'APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: aniyomi-hanime-apk
           path: aniyomi/src/en/hanime/build/outputs/apk/debug/*.apk

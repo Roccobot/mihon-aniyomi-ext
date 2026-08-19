@@ -150,6 +150,14 @@ class HanimeWebView(private val userAgent: String) {
         view.evaluateJavascript(CLICK_PLAY) { outcome ->
             HanimeLog.log("PLAY click$attempt $outcome")
         }
+        // The page carries an 'MP4Download' control: on a free account it may lead to the
+        // premium modal, or it may hand over a direct address. Only trying says which, and
+        // the requests that follow are in the trace either way.
+        if (attempt == DOWNLOAD_ATTEMPT) {
+            view.evaluateJavascript(CLICK_DOWNLOAD) { outcome ->
+                HanimeLog.log("PLAY dl     $outcome")
+            }
+        }
         if (attempt < CLICK_ATTEMPTS) {
             handler.postDelayed({ clickPlay(view, attempt + 1) }, CLICK_INTERVAL)
         }
@@ -226,6 +234,20 @@ class HanimeWebView(private val userAgent: String) {
             Regex("""\.(png|jpe?g|webp|gif|svg|ico|css|woff2?|ttf)(\?|$)""", RegexOption.IGNORE_CASE)
 
         private const val DOM_DUMP = "document.documentElement.outerHTML"
+        private const val DOWNLOAD_ATTEMPT = 3
+
+        private const val CLICK_DOWNLOAD =
+            """(function () {
+                 var nodes = document.querySelectorAll('button, [role=button], a');
+                 for (var i = 0; i < nodes.length; i++) {
+                   var n = nodes[i];
+                   var hay = (n.getAttribute('aria-label') || '') + ' ' + (n.textContent || '').slice(0, 30);
+                   if (!/download|mp4/i.test(hay)) continue;
+                   n.click();
+                   return 'clicked=' + n.tagName + ' [' + hay.trim().slice(0, 30) + '] href=' + (n.getAttribute('href') || '-');
+                 }
+                 return 'noDownloadControl';
+               })();"""
 
         // Returns a short report instead of nothing: 'which element did it find, did play()
         // resolve', which is exactly what a stuck player refuses to tell.
@@ -249,7 +271,10 @@ class HanimeWebView(private val userAgent: String) {
                    var n = nodes[i];
                    var hay = (n.getAttribute('aria-label') || '') + ' ' + (n.getAttribute('title') || '') +
                              ' ' + (n.className || '') + ' ' + (n.textContent || '').slice(0, 40);
-                   if (/playlist/i.test(hay) || !wanted.test(hay)) continue;
+                   // ⚠️ Measured exclusions, both learned from the trace: `playlist` matched
+                   // the first version's selector, and `watch-later` matched the word 'watch'.
+                   // Neither is a play button, and clicking them reported success.
+                   if (/playlist|watch.?later|pointer-events-none/i.test(hay) || !wanted.test(hay)) continue;
                    n.click();
                    hits++;
                    out.push('clicked=' + n.tagName + '.' + String(n.className).slice(0, 40));
@@ -283,6 +308,23 @@ class HanimeWebView(private val userAgent: String) {
                    if (t) labels.push(t);
                  }
                  r.push('buttons[' + btns.length + ']=' + labels.join('|'));
+                 // Custom elements and shadow roots: a `video` inside a shadow tree is
+                 // invisible to querySelector, and this page is built of web components.
+                 var all = document.querySelectorAll('*');
+                 var customs = [], shadows = [];
+                 for (var k = 0; k < all.length; k++) {
+                   var tag = all[k].tagName.toLowerCase();
+                   if (tag.indexOf('-') > 0 && customs.indexOf(tag) < 0 && customs.length < 8) customs.push(tag);
+                   if (all[k].shadowRoot && shadows.length < 6) {
+                     var inner = all[k].shadowRoot.querySelectorAll('video').length;
+                     shadows.push(tag + '(video=' + inner + ')');
+                   }
+                 }
+                 r.push('custom=' + customs.join(','));
+                 r.push('shadow=' + shadows.join(','));
+                 // The container where a player would mount, to see what sits there instead.
+                 var slot = document.querySelector('[class*=h-\\[280px\\]], [class*=aspect], main div');
+                 r.push('slot=' + (slot ? (slot.tagName + '.' + String(slot.className).slice(0, 40) + ' >> ' + slot.innerHTML.replace(/\s+/g, ' ').slice(0, 220)) : 'none'));
                  var body = document.body ? document.body.innerText.slice(0, 160).replace(/\s+/g, ' ') : '';
                  r.push('text=' + body);
                  return r.join('  ');
