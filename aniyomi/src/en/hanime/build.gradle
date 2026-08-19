@@ -5,7 +5,7 @@ ext {
     extClass = '.Hanime'
     // Bump on every build meant to replace an installed one: Android refuses an APK
     // whose versionCode is not higher than the one already on the device.
-    extVersionCode = 19
+    extVersionCode = 20
     isNsfw = true
 }
 

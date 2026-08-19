@@ -175,6 +175,9 @@ class HanimeWebView(private val userAgent: String) {
         // premium modal, or it may hand over a direct address. Only trying says which, and
         // the requests that follow are in the trace either way.
         if (attempt == DOWNLOAD_ATTEMPT) {
+            // The snapshot has to be taken BEFORE the click, or there is nothing to compare the
+            // page against afterwards.
+            view.evaluateJavascript(SNAPSHOT_TEXT, null)
             view.evaluateJavascript(CLICK_DOWNLOAD) { outcome ->
                 HanimeLog.log("PLAY dl     $outcome")
             }
@@ -290,6 +293,12 @@ class HanimeWebView(private val userAgent: String) {
         private const val DOM_DUMP = "document.documentElement.outerHTML"
         private const val DOWNLOAD_ATTEMPT = 3
 
+        private const val SNAPSHOT_TEXT =
+            """(function () {
+                 window.__hanimeBefore = document.body ? (document.body.innerText || '') : '';
+                 return 'snapshot=' + window.__hanimeBefore.length;
+               })();"""
+
         private const val MODAL_DUMP =
             """(function () {
                  var sel = '[role=dialog], dialog, [class*=modal], [class*=fixed][class*=z-]';
@@ -306,13 +315,22 @@ class HanimeWebView(private val userAgent: String) {
                    var h = anchors[k].getAttribute('href') || '';
                    if (/^https?:/i.test(h) && h.indexOf('hanime.tv') < 0) ext.push(h.slice(0, 90));
                  }
-                 // ⚠️ The keyword window is what a shape-based search misses: the site's answer
-                 // may be plain text added to the page, with no dialog and no link, and this
-                 // returns the words around it rather than requiring it to look like a modal.
+                 // ⚠️⚠️ THE ADDED LINES, not a keyword window: searching for 'premium' or
+                 // 'download' in the body always hit the navigation drawer, which carries both
+                 // words on every page, so three samples in a row reported the menu instead of
+                 // the site's answer. Comparing against the snapshot taken before the click
+                 // cannot make that mistake: whatever the page says now that it did not say
+                 // before is exactly the reply, dialog or not.
                  var body = document.body ? (document.body.innerText || '') : '';
-                 var at = body.search(/download|premium|upgrade|region|unavailable|not available/i);
-                 var around = at < 0 ? 'noKeyword'
-                            : body.slice(Math.max(0, at - 120), at + 240).replace(/\s+/g, ' ');
+                 var before = window.__hanimeBefore || '';
+                 var was = {};
+                 before.split('\n').forEach(function (l) { was[l.trim()] = 1; });
+                 var added = [];
+                 body.split('\n').forEach(function (l) {
+                   var t = l.trim();
+                   if (t && !was[t] && added.length < 8) added.push(t.slice(0, 60));
+                 });
+                 var around = added.length ? added.join(' / ') : 'nothingNew';
                  var tail = '  ||external: ' + (ext.length ? ext.join(' ; ') : 'none') +
                             '  ||opened=' + (window.__hanimeOpened || 'none') +
                             '  ||around: ' + around;
