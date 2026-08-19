@@ -176,9 +176,15 @@ L'utente ha fotografato i passaggi, e sono **tre**, non uno:
   mancava un **secondo clic**.
 - ⚠️ **Mai la voce `Premium MP4 1080p`**, quella con la corona: su un account gratuito e un muro
   di pagamento, e l'estensione non finge di essere abbonata. L'ordine e 720p, 480p, 360p.
-- Ⓘ **Il sito avvisa che alcuni Paesi bloccano Pixeldrain**; nel caso misurato la riproduzione
-  funzionava comunque. E pixeldrain ha un **tetto di traffico giornaliero** (nella prova:
-  642 MB usati su 6 GB), che lo streaming consuma come un download.
+- ⚠️ **L'avviso del sito sul blocco di Pixeldrain e GENERICO e nel nostro caso FALSO**, e vale
+  saperlo per non dare la colpa alla causa sbagliata al primo intoppo: il pannello dice 'il tuo
+  Paese ha bloccato Pixeldrain, il link probabilmente non funzionera', ma due misure
+  indipendenti lo smentiscono, cioe pixeldrain che riproduce sul dispositivo dell'utente **senza
+  VPN** (screenshot, 2026-08-19) e un `curl` da questo ambiente che scarica il file
+  regolarmente. Il sito sembra mostrarlo a tutti gli indirizzi italiani senza verificare nulla.
+- Ⓘ Pixeldrain ha un **tetto di traffico giornaliero** (nella prova: 642 MB usati su 6 GB), e lo
+  streaming lo consuma come un download: con episodi da ~185 MB sono una trentina di visioni al
+  giorno.
 
 ## Che cosa si sa del player, misurato (2026-08-19)
 
