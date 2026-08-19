@@ -100,14 +100,18 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
     private fun searchPageParse(response: Response): AnimesPage {
         val page = response.parseAs<SearchResponseDto>()
         val hits = json.decodeFromString<List<HitDto>>(page.hits.ifBlank { "[]" })
-        val entries = hits.map { hit ->
-            SAnime.create().apply {
-                url = "$VIDEO_PATH${hit.slug}"
-                title = hit.name
-                thumbnail_url = hit.coverUrl ?: hit.posterUrl
-                author = hit.brand
+        val entries = hits
+            // One entry per SERIES, not per video: the site gives every episode its own
+            // page, and grouping is by the title stripped of its trailing number.
+            .distinctBy { it.slug.baseSlug() }
+            .map { hit ->
+                SAnime.create().apply {
+                    url = groupUrl(hit.slug)
+                    title = hit.name.baseTitle()
+                    thumbnail_url = hit.coverUrl ?: hit.posterUrl
+                    author = hit.brand
+                }
             }
-        }
         return AnimesPage(entries, page.page + 1 < page.nbPages)
     }
 
@@ -118,8 +122,8 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun animeDetailsParse(response: Response): SAnime {
         val video = response.parseAs<VideoResponseDto>().video
         return SAnime.create().apply {
-            url = "$VIDEO_PATH${video.slug}"
-            title = video.name
+            url = groupUrl(video.slug)
+            title = video.name.baseTitle()
             thumbnail_url = video.coverUrl ?: video.posterUrl
             author = video.brand
             genre = video.tags.joinToString { it.text }
@@ -135,15 +139,19 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun episodeListParse(response: Response): List<SEpisode> {
         val data = response.parseAs<VideoResponseDto>()
-        // A one-shot has no franchise, and then the entry itself is the only episode.
-        val entries = data.franchise.ifEmpty {
-            listOf(FranchiseEntryDto(data.video.name, data.video.slug, data.video.releasedAtUnix))
-        }
+        val itself = FranchiseEntryDto(data.video.name, data.video.slug, data.video.releasedAtUnix)
+        // ⚠️ The franchise is NOT the series: the site puts sequels and spin-offs in the
+        // same franchise, so it is filtered down to the entries whose title matches the
+        // group. Taking the franchise whole would put 'Titolo IV' inside 'Titolo III'.
+        val group = data.video.name.baseTitle()
+        val entries = (listOf(itself) + data.franchise)
+            .filter { it.name.baseTitle() == group }
+            .distinctBy { it.slug }
         return entries.map { entry ->
             SEpisode.create().apply {
                 url = "$VIDEO_PATH${entry.slug}"
                 name = entry.name
-                episode_number = entry.slug.episodeNumber()
+                episode_number = entry.episodeNumber()
                 date_upload = (entry.releasedAtUnix ?: 0L) * 1000L
             }
         }.sortedByDescending { it.episode_number }
@@ -191,9 +199,32 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
         json.decodeFromString(it.body.string())
     }
 
-    /** Trailing digits of a slug: `shikkaku-ishi-1` -> 1. Unnumbered slugs get 1. */
-    private fun String.episodeNumber(): Float =
-        SLUG_NUMBER.find(this)?.groupValues?.get(1)?.toFloatOrNull() ?: 1F
+    // ── Grouping: one entry per series, not per episode ─────────────────────────
+    //
+    // hanime.tv gives every episode its own page and its own slug, so without this an
+    // eight-episode series shows up as eight entries. The rule is the one the old
+    // extension used: same title once the trailing number is removed, same series.
+
+    /** `Anime Titolo III 02` -> `Anime Titolo III`. A title with no number is left alone. */
+    private fun String.baseTitle(): String = TITLE_NUMBER.replace(trim(), "").trim()
+
+    /** `anime-titolo-iii-2` -> `anime-titolo-iii`. */
+    private fun String.baseSlug(): String = SLUG_NUMBER.replace(this, "")
+
+    /**
+     * The url that identifies the GROUP, and it has to be derived rather than picked:
+     * the entry Aniyomi keeps in the library is this url, so taking the slug of whichever
+     * episode happened to come first in a page of results would file the same series
+     * under two entries depending on the search that found it. Numbering on this site
+     * starts at 1, so episode 1 is the stable representative of the group.
+     */
+    private fun groupUrl(slug: String): String =
+        if (SLUG_NUMBER.containsMatchIn(slug)) "$VIDEO_PATH${slug.baseSlug()}-1" else "$VIDEO_PATH$slug"
+
+    /** The number comes from the title, and from the slug only if the title has none. */
+    private fun FranchiseEntryDto.episodeNumber(): Float =
+        (TITLE_NUMBER.find(name.trim()) ?: SLUG_NUMBER.find(slug))
+            ?.groupValues?.get(1)?.toFloatOrNull() ?: 1F
 
     private fun String.height(): Int = removeSuffix("p").toIntOrNull() ?: 0
 
@@ -212,7 +243,13 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
         private const val ORDER_RELEASED = "released_at_unix"
 
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
-        private val SLUG_NUMBER = Regex("-(\\d+)$")
+
+        // ⚠️ ARABIC digits only, and only at the very end: titles carry roman numerals as
+        // part of the name ('Anime Titolo III'), and a pattern greedy enough to eat those
+        // would merge three different series into one. The optional 'ep'/'episode' covers
+        // the few entries written that way.
+        private val TITLE_NUMBER = Regex("""[\s._-]*(?:ep\.?|episode)?\s*(\d{1,3})$""", RegexOption.IGNORE_CASE)
+        private val SLUG_NUMBER = Regex("""-(\d{1,3})$""")
         private val HTML_TAG = Regex("<[^>]*>")
 
         private val QUALITIES = arrayOf("1080p", "720p", "480p", "360p")
