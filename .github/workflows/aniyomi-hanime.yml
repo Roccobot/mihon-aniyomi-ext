@@ -42,16 +42,28 @@ jobs:
       - name: Build
         run: ./gradlew :src:en:hanime:assembleDebug --stacktrace
 
-      - name: Raccogli l'APK
-        uses: actions/upload-artifact@v5
-        with:
-          name: aniyomi-hanime-apk
-          path: aniyomi/src/en/hanime/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+      # ⚠️ NIENTE actions/upload-artifact, e non e una semplificazione: quella azione gira
+      # ancora su Node 20 anche alla v5, ed e la sola origine dell'avviso di deprecazione che
+      # restava. Togliendola l'avviso cade all'origine, e l'APK finisce in un posto migliore:
+      # una Release 'latest' aggiornata a ogni build, che si scarica con un tocco dal telefono,
+      # non chiede l'accesso, non arriva in uno zip e non scade dopo 90 giorni.
+      - name: Pubblica l'APK nella Release 'latest'
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          APK=$(ls src/en/hanime/build/outputs/apk/debug/*.apk | head -1)
+          NOTE="APK dell'estensione hanime.tv per Aniyomi. Build ${GITHUB_SHA}."
+          # La release esiste una volta sola e poi si aggiorna: --clobber sostituisce l'asset
+          # invece di accumularne uno per build.
+          gh release view latest >/dev/null 2>&1 \
+            || gh release create latest --prerelease --title "Ultima build" --notes "$NOTE"
+          gh release edit latest --notes "$NOTE"
+          gh release upload latest "$APK" --clobber
 
-      # Solo su tag: l'artefatto sopra basta per le build di tutti i giorni, la Release e
-      # per le versioni che vale la pena tenere, e da telefono si apre in un clic.
-      - name: Pubblica la Release
+      # Su tag: una Release che resta, per le versioni che vale la pena tenere.
+      - name: Pubblica la Release del tag
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

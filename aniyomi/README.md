@@ -6,8 +6,11 @@ il repository e privato e l'APK non e distribuito, si installa a mano sul telefo
 
 ## Come si installa
 
-1. Nella scheda **Actions** di questo repository, apri l'ultima build riuscita e scarica
-   l'artefatto `aniyomi-hanime-apk` (oppure, se la versione ha un tag, prendi l'APK dalla Release).
+1. Vai nella scheda **Releases** del repository e apri **`latest`**: e aggiornata a ogni build
+   e porta l'APK come allegato, scaricabile con un tocco. ⚠️ Non ci sono piu artefatti di
+   Actions: `actions/upload-artifact` gira ancora su Node 20 anche alla v5 ed era la sola
+   origine dell'avviso di deprecazione, e un artefatto chiede l'accesso a GitHub, arriva in uno
+   zip e scade dopo 90 giorni.
 2. Apri l'APK sul telefono e installalo come una normale app.
 3. Aniyomi chiede di **fidarsi di una firma sconosciuta**: e la richiesta attesa per
    un'estensione che non viene dal repository ufficiale, e si conferma.
