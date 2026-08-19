@@ -347,9 +347,13 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
         private const val DEFAULT_UA =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36"
 
-        private val QUALITIES = arrayOf("1080p", "720p", "480p", "360p")
+        // ⚠️ NO 1080p, deliberately (user's call, 2026-08-19): on this site that resolution
+        // is reserved for paying members, so offering it on a free account is a promise the
+        // source cannot keep, and the point of this extension is convenience, not unlocking
+        // what an account does not include.
+        private val QUALITIES = arrayOf("720p", "480p", "360p")
         private const val PREF_QUALITY_KEY = "preferred_quality"
-        private const val PREF_QUALITY_DEFAULT = "1080p"
+        private const val PREF_QUALITY_DEFAULT = "720p"
         private const val PREF_LOG_KEY = "log_to_file"
 
         private const val DEBUG_QUERY = "debug"

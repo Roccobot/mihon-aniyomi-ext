@@ -55,7 +55,17 @@ con la sessione dell'utente, e l'estensione legge il risultato (vedi `HanimeWebV
 - ⚠️ **Il DOM si aspetta con un polling, non con `onPageFinished`**: il sito rende le liste
   **dopo** che la pagina risulta 'finita', quindi quel callback scatta troppo presto.
 - **La risoluzione non si chiede**: si prende la piu alta disponibile, con la preferenza del
-  pannello in cima a parita di disponibilita.
+  pannello in cima a parita di disponibilita. ⚠️⚠️ **Il 1080p NON e fra le scelte**, per
+  decisione dell'utente (2026-08-19): su questo sito e riservato agli abbonati, quindi
+  offrirlo su un account gratuito e una promessa che la sorgente non puo mantenere. Lo scopo
+  dell'estensione e la comodita di guardare da Aniyomi, non sbloccare cio che l'account non
+  comprende. Le scelte sono 720p (predefinita), 480p e 360p.
+- ⚠️⚠️ **Le credenziali NON stanno nel codice, e non e una dimenticanza**: l'accesso si fa
+  **dalla WebView dell'app** (tasto `WebView` nella scheda), e da quel momento il cookie di
+  sessione vive nel browser di Aniyomi e l'estensione lo eredita. Una parola d'ordine scritta
+  nel sorgente, anche di un repo privato, resterebbe **nella storia git per sempre**,
+  viaggerebbe in ogni clone e in ogni artefatto della CI, e sopravvivrebbe a un cambio di
+  password. L'utente aveva offerto di cablarla: e stata rifiutata per questo.
 - ⚠️ **Tutto passa dal thread principale e blocca quello chiamante**: una WebView non si
   tocca da un thread di lavoro, mentre le sorgenti sono chiamate da thread IO. Da qui
   l'`Handler` piu il latch, e il timeout su ogni ingresso.
