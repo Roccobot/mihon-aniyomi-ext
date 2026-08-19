@@ -74,10 +74,10 @@ estensione: **stesso titolo una volta tolto il numero finale, stessa serie**. Co
 - ⚠️ **La franchise del sito NON e la serie**: contiene anche sequel e spin-off, quindi la
   lista episodi la filtra sul titolo del gruppo. Prendendola intera, `Titolo IV` finirebbe
   dentro `Titolo III`.
-- **Limite noto, dichiarato**: la deduplica agisce su **una pagina** di risultati alla
-  volta, perche e tutto quello che l'API restituisce per volta. Se due episodi della stessa
-  serie cadono a cavallo di due pagine, in esplorazione la voce puo comparire due volte; in
-  **libreria no**, perche le due voci hanno lo stesso indirizzo calcolato.
+- **Limite noto, dichiarato**: la deduplica vede **una schermata** per volta, cioe i link
+  presenti nel DOM di quella pagina. Se due episodi della stessa serie non ci stanno insieme,
+  in esplorazione la voce puo comparire due volte; in **libreria no**, perche le due voci
+  hanno lo stesso indirizzo calcolato.
 
 ## Struttura e crediti
 
