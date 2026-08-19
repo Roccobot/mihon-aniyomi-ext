@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.os.Handler
 import android.os.Looper
+import android.webkit.ConsoleMessage
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -19,9 +21,9 @@ import java.util.concurrent.TimeUnit
  * WHY THIS EXISTS, because it is not the obvious way to write a source: hanime.tv's API
  * (v11) accepts neither plain requests nor requests this extension could sign. Catalog
  * calls carry a signature produced by a WASM module the site ships in its player bundle,
- * and the stream handshake wraps its body in a sealed token and answers with an encrypted
- * header. Reproducing any of that would mean lifting the site's own compiled module and
- * keys, which this extension does not do.
+ * and the stream handshake seals its body with a key from that same bundle and answers with
+ * an encrypted header. Reproducing any of that would mean lifting the site's own compiled
+ * module and keys, which this extension does not do.
  *
  * So the site's client does its own work, in a real browser, with the user's own session,
  * and this class only:
@@ -31,6 +33,9 @@ import java.util.concurrent.TimeUnit
  * ⚠️ Everything here runs on the MAIN thread and blocks the calling one: a WebView cannot
  * be touched from a background thread, while sources are called from IO threads. Hence the
  * handler + latch dance, and hence every entry point takes a timeout.
+ *
+ * Every step reports to [HanimeLog]: the failure worth diagnosing is a player that sits
+ * still without an error, and that one leaves no other trace.
  */
 class HanimeWebView(private val userAgent: String) {
 
@@ -38,8 +43,8 @@ class HanimeWebView(private val userAgent: String) {
     private val handler = Handler(Looper.getMainLooper())
 
     /**
-     * Loads [url] and returns the DOM once it contains a match for [waitFor], or whatever
-     * it holds when [timeoutMs] runs out. Polling the DOM rather than waiting for
+     * Loads [url] and returns the DOM once it contains a match for [waitFor], or whatever it
+     * holds when [timeoutMs] runs out. Polling the DOM rather than waiting for
      * `onPageFinished` is deliberate: the site renders its lists after the page is
      * "finished", so that callback fires far too early.
      */
@@ -47,20 +52,23 @@ class HanimeWebView(private val userAgent: String) {
         var html = ""
         val latch = CountDownLatch(1)
         var webView: WebView? = null
+        HanimeLog.log("DOM  load   $url")
 
         handler.post {
             val view = newWebView()
             webView = view
             view.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView, finishedUrl: String) {
+                    HanimeLog.log("DOM  loaded $finishedUrl")
                     pollDom(view, waitFor, latch) { html = it }
                 }
             }
             view.loadUrl(url)
         }
 
-        latch.await(timeoutMs, TimeUnit.MILLISECONDS)
+        val inTime = latch.await(timeoutMs, TimeUnit.MILLISECONDS)
         destroy(webView)
+        HanimeLog.log("DOM  ${if (inTime) "done" else "TIMEOUT"}, ${html.length} chars, pattern ${if (waitFor.containsMatchIn(html)) "found" else "NOT found"}")
         return html
     }
 
@@ -78,6 +86,7 @@ class HanimeWebView(private val userAgent: String) {
         val seen = mutableListOf<String>()
         val latch = CountDownLatch(1)
         var webView: WebView? = null
+        HanimeLog.log("PLAY load   $url")
 
         handler.post {
             val view = newWebView()
@@ -91,30 +100,39 @@ class HanimeWebView(private val userAgent: String) {
                     // ⚠️ Everything not obviously static is kept, and it is not book-keeping
                     // for its own sake: when no stream turns up, this list is the only way to
                     // learn what the player DID ask for, and the next fix is read from it.
-                    if (seen.size < MAX_SEEN && !STATIC_ASSET.containsMatchIn(candidate)) {
-                        seen += candidate
+                    if (!STATIC_ASSET.containsMatchIn(candidate)) {
+                        if (seen.size < MAX_SEEN) seen += candidate
+                        HanimeLog.log("PLAY req    ${request.method} $candidate")
                     }
                     if (found == null && waitFor.containsMatchIn(candidate)) {
                         found = candidate to request.requestHeaders
+                        HanimeLog.log("PLAY MATCH  $candidate")
+                        HanimeLog.log("PLAY hdrs   ${request.requestHeaders}")
                         latch.countDown()
                     }
-                    // null: the request goes through untouched. This class observes, it
-                    // does not alter what the page does.
+                    // null: the request goes through untouched. This class observes, it does
+                    // not alter what the page does.
                     return null
                 }
 
                 override fun onPageFinished(view: WebView, finishedUrl: String) {
+                    HanimeLog.log("PLAY loaded $finishedUrl")
                     // Some players only ask for the stream once playback starts, and a
-                    // WebView will not start on its own even with autoplay allowed:
-                    // clicking play is what a person would do on this same page.
-                    view.evaluateJavascript(CLICK_PLAY, null)
+                    // WebView will not start on its own even with autoplay allowed: clicking
+                    // play is what a person would do on this same page. Repeated a few
+                    // times because the player is mounted after the page settles.
+                    clickPlay(view, 1)
                 }
             }
             view.loadUrl(url)
         }
 
-        latch.await(timeoutMs, TimeUnit.MILLISECONDS)
+        val inTime = latch.await(timeoutMs, TimeUnit.MILLISECONDS)
         destroy(webView)
+        HanimeLog.log(
+            "PLAY ${if (inTime) "done" else "TIMEOUT"}, ${seen.size} non-static requests, " +
+                "stream ${if (found != null) "found" else "NOT found"}",
+        )
         return MediaResult(found, seen.toList())
     }
 
@@ -123,6 +141,15 @@ class HanimeWebView(private val userAgent: String) {
         val hit: Pair<String, Map<String, String>>?,
         val seen: List<String>,
     )
+
+    private fun clickPlay(view: WebView, attempt: Int) {
+        view.evaluateJavascript(CLICK_PLAY) { outcome ->
+            HanimeLog.log("PLAY click$attempt $outcome")
+        }
+        if (attempt < CLICK_ATTEMPTS) {
+            handler.postDelayed({ clickPlay(view, attempt + 1) }, CLICK_INTERVAL)
+        }
+    }
 
     private fun pollDom(view: WebView, waitFor: Regex, latch: CountDownLatch, onFound: (String) -> Unit) {
         var attempts = 0
@@ -136,8 +163,8 @@ class HanimeWebView(private val userAgent: String) {
                 } else if (++attempts < MAX_POLLS) {
                     handler.postDelayed({ poll() }, POLL_INTERVAL)
                 } else {
-                    // Hand back what there is: a caller with an empty list says more than
-                    // a silent timeout, and the DOM is what the next fix is read from.
+                    // Hand back what there is: a caller with an empty list says more than a
+                    // silent timeout, and the DOM is what the next fix is read from.
                     onFound(html)
                     latch.countDown()
                 }
@@ -151,9 +178,17 @@ class HanimeWebView(private val userAgent: String) {
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.userAgentString = userAgent
-        // Not a trick: it is the switch that lets a page start its own video without a
-        // tap, which is what makes the player ask for its stream.
+        // Not a trick: it is the switch that lets a page start its own video without a tap,
+        // which is what makes the player ask for its stream.
         settings.mediaPlaybackRequiresUserGesture = false
+        webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                // The site's own errors explain most silent failures ('not signed in',
+                // 'handshake failed'), and they are invisible anywhere else.
+                HanimeLog.log("JS   ${message.messageLevel()} ${message.message()}")
+                return true
+            }
+        }
     }
 
     private fun destroy(webView: WebView?) {
@@ -180,17 +215,33 @@ class HanimeWebView(private val userAgent: String) {
         private const val POLL_INTERVAL = 400L
         private const val MAX_POLLS = 60
         private const val MAX_SEEN = 60
+        private const val CLICK_ATTEMPTS = 5
+        private const val CLICK_INTERVAL = 2_500L
 
         private val STATIC_ASSET =
-            Regex("""\.(png|jpe?g|webp|gif|svg|ico|css|woff2?|ttf|js)(\?|$)""", RegexOption.IGNORE_CASE)
+            Regex("""\.(png|jpe?g|webp|gif|svg|ico|css|woff2?|ttf)(\?|$)""", RegexOption.IGNORE_CASE)
 
         private const val DOM_DUMP = "document.documentElement.outerHTML"
+
+        // Returns a short report instead of nothing: 'which element did it find, did play()
+        // resolve', which is exactly what a stuck player refuses to tell.
         private const val CLICK_PLAY =
             """(function () {
+                 var out = [];
                  var v = document.querySelector('video');
-                 if (v) { v.muted = true; var p = v.play(); if (p && p.catch) p.catch(function () {}); }
-                 var b = document.querySelector('[class*=play],[aria-label*=lay],button');
-                 if (b) b.click();
+                 out.push('video=' + (v ? (v.currentSrc || v.src || 'no-src') : 'none'));
+                 if (v) {
+                   v.muted = true;
+                   try { var p = v.play(); if (p && p.then) { p.then(function () {}, function (e) {}); } } catch (e) { out.push('playErr=' + e.name); }
+                   out.push('paused=' + v.paused + ' ready=' + v.readyState + ' net=' + v.networkState);
+                 }
+                 var sel = ['[class*=play]', '[aria-label*=lay]', '[title*=lay]', 'button'];
+                 for (var i = 0; i < sel.length; i++) {
+                   var b = document.querySelector(sel[i]);
+                   if (b) { b.click(); out.push('clicked=' + sel[i]); break; }
+                 }
+                 out.push('iframes=' + document.querySelectorAll('iframe').length);
+                 return out.join(' ');
                })();"""
     }
 }

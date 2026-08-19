@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.SharedPreferences
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
+import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
@@ -57,6 +58,10 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
 
     private val webView by lazy { HanimeWebView(headers["User-Agent"] ?: DEFAULT_UA) }
 
+    init {
+        HanimeLog.toFile = preferences.getBoolean(PREF_LOG_KEY, false)
+    }
+
     override fun headersBuilder() = super.headersBuilder().add("Referer", "$baseUrl/")
 
     // ── Lists ──────────────────────────────────────────────────────────────────
@@ -68,10 +73,32 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override suspend fun getLatestUpdates(page: Int): AnimesPage = pageOf(LATEST_URL)
 
-    override suspend fun getSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage =
-        pageOf(searchUrl(query))
+    override suspend fun getSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
+        // Searching `debug` opens the trace instead of the site. It is the only way to read
+        // it on a phone without a cable or a file manager, and the word is reserved: nothing
+        // on this site is called that.
+        val asked = query.trim()
+        if (asked.equals(DEBUG_CLEAR, ignoreCase = true)) {
+            // Clearing lives on the same channel instead of in the settings, because the
+            // library's Preference stub has no constructor a source can call.
+            HanimeLog.clear()
+            HanimeLog.log("log cleared")
+            return AnimesPage(listOf(debugEntry()), false)
+        }
+        if (asked.equals(DEBUG_QUERY, ignoreCase = true)) {
+            return AnimesPage(listOf(debugEntry()), false)
+        }
+        return pageOf(searchUrl(query))
+    }
+
+    private fun debugEntry() = SAnime.create().apply {
+        url = DEBUG_URL
+        title = "Debug log (tap to read)"
+        thumbnail_url = null
+    }
 
     private fun pageOf(url: String): AnimesPage {
+        HanimeLog.log("LIST $url")
         val html = webView.renderedHtml(url, VIDEO_LINK)
         val entries = Jsoup.parse(html, baseUrl)
             .select("a[href*=$VIDEO_PATH]")
@@ -79,6 +106,7 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
             // One entry per SERIES: the site gives every episode its own page, and the
             // grouping rule is the title stripped of its trailing number.
             .distinctBy { it.url }
+        HanimeLog.log("LIST ${entries.size} entries: ${entries.take(4).joinToString { it.title }}")
         // No pagination yet, deliberately: the site paginates by scrolling, and a page
         // number this source cannot verify would be a promise it does not keep.
         return AnimesPage(entries, false)
@@ -118,6 +146,16 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
     // ── One entry: details, episodes, streams ──────────────────────────────────
 
     override suspend fun getAnimeDetails(anime: SAnime): SAnime {
+        if (anime.url == DEBUG_URL) {
+            return SAnime.create().apply {
+                url = DEBUG_URL
+                title = "Debug log"
+                author = "Log file: ${HanimeLog.filePath()}"
+                description = HanimeLog.dump()
+                status = SAnime.COMPLETED
+                initialized = true
+            }
+        }
         val page = Jsoup.parse(webView.renderedHtml(baseUrl + anime.url, VIDEO_LINK), baseUrl)
         return SAnime.create().apply {
             url = anime.url
@@ -130,6 +168,7 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
+        if (anime.url == DEBUG_URL) return emptyList()
         val page = Jsoup.parse(webView.renderedHtml(baseUrl + anime.url, VIDEO_LINK), baseUrl)
         // ⚠️ Siblings are recognised by SLUG, not by title, and the difference is what made
         // the first attempt show one episode per series: titles on this site can arrive
@@ -160,6 +199,7 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
                 },
             )
         }.sortedByDescending { it.episode_number }
+            .also { HanimeLog.log("EPS  group $group -> ${it.size}: ${it.take(6).joinToString { e -> e.name }}") }
     }
 
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
@@ -177,6 +217,7 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
                 add("Referer", "$baseUrl/")
             }
         }.build()
+        HanimeLog.log("PLAY handing to player: ${url.qualityLabel()} $url")
         return listOf(Video(url, url.qualityLabel(), url, built))
     }
 
@@ -198,6 +239,18 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
             entryValues = QUALITIES
             setDefaultValue(PREF_QUALITY_DEFAULT)
             summary = "%s"
+        }.also(screen::addPreference)
+
+        SwitchPreferenceCompat(screen.context).apply {
+            key = PREF_LOG_KEY
+            title = "Write the debug log to a file"
+            summary = "Off by default. Read the trace anytime by searching '$DEBUG_QUERY' in " +
+                "this source, empty it with '$DEBUG_CLEAR'. File: ${HanimeLog.filePath()}"
+            setDefaultValue(false)
+            setOnPreferenceChangeListener { _, value ->
+                HanimeLog.toFile = value as Boolean
+                true
+            }
         }.also(screen::addPreference)
     }
 
@@ -283,5 +336,10 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
         private val QUALITIES = arrayOf("1080p", "720p", "480p", "360p")
         private const val PREF_QUALITY_KEY = "preferred_quality"
         private const val PREF_QUALITY_DEFAULT = "1080p"
+        private const val PREF_LOG_KEY = "log_to_file"
+
+        private const val DEBUG_QUERY = "debug"
+        private const val DEBUG_CLEAR = "debug clear"
+        private const val DEBUG_URL = "#debug-log"
     }
 }

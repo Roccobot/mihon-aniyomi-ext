@@ -70,6 +70,32 @@ con la sessione dell'utente, e l'estensione legge il risultato (vedi `HanimeWebV
 - **Niente paginazione, per ora**: il sito pagina scorrendo, e un numero di pagina che
   questa sorgente non puo verificare sarebbe una promessa non mantenuta.
 
+## Tracciamento: come si vede cosa succede al clic su Play
+
+⚠️ **Il difetto peggiore di questa sorgente e quello SILENZIOSO**: un player che resta fermo
+senza errore non dice niente, e da fuori dal telefono il sito non e osservabile. Quindi ogni
+passo lascia una traccia in `HanimeLog`, e si legge in tre modi, dal piu comodo al meno:
+
+| come | cosa fare |
+|---|---|
+| **dalla sorgente** | cerca `debug` in questa sorgente: compare una voce 'Debug log', e la sua **descrizione** e la traccia intera. Nessun cavo, nessun file manager, nessun permesso |
+| **da file** | accendi 'Write the debug log to a file' nelle impostazioni della sorgente: il percorso e scritto nel sommario, e la traccia sopravvive al riavvio dell'app |
+| **da logcat** | tutte le righe escono anche col tag `HanimeRoccobot` |
+
+- Per svuotarla si cerca `debug clear` nella sorgente. ⚠️ Sta **sullo stesso canale** e non
+  nelle impostazioni perche lo stub `Preference` della libreria non ha un costruttore che una
+  sorgente possa chiamare (`ListPreference` e `SwitchPreferenceCompat` si, `Preference` no).
+- **Che cosa registra**: caricamento e resa di ogni pagina, **ogni richiesta non statica** che
+  la pagina fa (con metodo e indirizzo), gli **errori JS del sito** (che spiegano la maggior
+  parte dei fallimenti silenziosi: 'non autenticato', handshake rifiutato), l'esito di ogni
+  tentativo di avvio del player (elemento trovato, `paused`, `readyState`, numero di iframe) e
+  **l'indirizzo che viene passato al player** di Aniyomi.
+- **Il clic su Play si ritenta cinque volte** a distanza di 2,5 secondi: il player viene
+  montato dopo che la pagina si e assestata, quindi un tentativo solo arriva troppo presto.
+- ⚠️ **La traccia e un anello di 400 righe** e non una lista che cresce: questo oggetto vive
+  quanto l'app, e un log illimitato sarebbe una perdita di memoria. Scrivere su file non puo
+  far cadere la riproduzione: se la scrittura fallisce, si prosegue.
+
 ## Un'opera e una SERIE, non un video
 
 hanime.tv da a ogni episodio una pagina e uno slug propri, quindi senza raggruppamento una
