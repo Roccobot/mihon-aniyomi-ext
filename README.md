@@ -23,8 +23,10 @@ build completo, non hanno alcun punto di contatto da mantenere allineato.
 
 ## Come si installa un'estensione
 
-1. Scheda **Actions**, apri l'ultima build riuscita e scarica l'artefatto con l'APK
-   (se la versione ha un tag `v*`, l'APK sta anche nella Release).
+1. Scheda **Releases**, apri **`latest`**: e aggiornata a ogni build e porta l'APK come
+   allegato, scaricabile con un tocco. Le versioni con un tag `v*` hanno una Release propria,
+   che resta. ⚠️ Gli artefatti di Actions non si usano piu: chiedono l'accesso a GitHub,
+   arrivano in uno zip, scadono dopo 90 giorni, e l'azione che li carica gira ancora su Node 20.
 2. Apri l'APK sul telefono e installalo come una normale app.
 3. L'app chiede di **fidarsi di una firma sconosciuta**: e la richiesta attesa per
    un'estensione che non viene dal repository ufficiale, e si conferma.
