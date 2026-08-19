@@ -142,6 +142,16 @@ pagina**.
   link compaia dopo l'uso del controllo di download.
 - Se il link manca, l'errore lo dice in chiaro: **accedi dal tasto WebView**, perche e la
   sessione a fare comparire l'indirizzo.
+- ⚠️⚠️ **Alcuni titoli sono SOGGETTI A RESTRIZIONE, e non e un difetto della sorgente**: al
+  posto del player la loro pagina porta un `RestrictedVideoNotice`, e allora non esistono ne
+  flusso ne link di download. Misurato su `uchi-no-otouto-...-1`, i cui soli link esterni erano
+  Discord e un banner, e la cui pagina aveva appena chiesto `country_code` al sito. L'errore
+  lo dice: attribuire quel caso all'estensione sarebbe dare la colpa a lei per una decisione
+  del sito.
+- ⚠️ **Un link aperto in una SCHEDA NUOVA non e un'ancora nel DOM**: se il controllo di
+  download passa l'host esterno a `window.open`, dal codice non si vedrebbe nulla. Quella
+  funzione e agganciata per **registrare** l'indirizzo e poi lasciarla proseguire: si osserva,
+  non si altera.
 
 ## Che cosa si sa del player, misurato (2026-08-19)
 

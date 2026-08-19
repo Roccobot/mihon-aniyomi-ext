@@ -226,7 +226,21 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
         HanimeLog.log("PLAY session cookies: ${webView.cookieNames(baseUrl)}")
 
         // First and cheapest: the rendered page, with no clicking at all.
-        val page = Jsoup.parse(webView.renderedHtml(baseUrl + episode.url, VIDEO_LINK), baseUrl)
+        val html = webView.renderedHtml(baseUrl + episode.url, VIDEO_LINK)
+        // ⚠️ A RESTRICTED title has neither player nor download link, and reporting 'no video
+        // found' for it would blame this extension for the site's own decision. Where the
+        // player would sit, such a page carries a `RestrictedVideoNotice`: measured on
+        // `uchi-no-otouto-...-1`, whose only external links were Discord and an ad, and whose
+        // page had just asked the site for `country_code`.
+        if (RESTRICTED_NOTICE.containsMatchIn(html)) {
+            HanimeLog.log("PLAY restricted: the page shows RestrictedVideoNotice")
+            throw Exception(
+                "This title is restricted on hanime.tv: its page shows a 'restricted video' " +
+                    "notice instead of a player, so the site offers neither a stream nor a " +
+                    "download link for it. Another title will work.",
+            )
+        }
+        val page = Jsoup.parse(html, baseUrl)
         val external = page.select("a[href]")
             .map { it.attr("abs:href") }
             .filter { it.isNotBlank() && !it.contains("hanime.tv", ignoreCase = true) }
@@ -379,6 +393,9 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
         private val VIDEO_LINK = Regex(Regex.escape(VIDEO_PATH))
         private val MEDIA_URL = Regex("""\.(m3u8|mp4)(\?|$)|pixeldrain\.(net|com)/(u|api/file)/""")
         private val PIXELDRAIN_PAGE = Regex("""pixeldrain\.(?:net|com)/u/([A-Za-z0-9]+)""")
+
+        // The element the site puts where the player would be, when a title is not available.
+        private val RESTRICTED_NOTICE = Regex("""RestrictedVideoNotice|restricted-video-notice""")
 
         // ⚠️ ARABIC digits only, and only at the very end: titles carry roman numerals as
         // part of the name ('Anime Titolo III'), and a greedier pattern would merge three

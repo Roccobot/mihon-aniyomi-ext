@@ -130,6 +130,10 @@ class HanimeWebView(private val userAgent: String) {
                     // The page is left alone for a while first: this app hydrates its
                     // components after load, and touching it earlier is what broke it.
                     handler.postDelayed({
+                        // ⚠️ A link opened in a NEW TAB is not an anchor in the DOM: the site's
+                        // download control may hand the file host to `window.open`, and without
+                        // this hook that address stays invisible from here.
+                        view.evaluateJavascript(HOOK_WINDOW_OPEN, null)
                         view.evaluateJavascript(DOM_INVENTORY) { HanimeLog.log("PLAY dom    $it") }
                         clickPlay(view, 1)
                     }, SETTLE_DELAY)
@@ -291,14 +295,32 @@ class HanimeWebView(private val userAgent: String) {
                    var b = boxes[i], r = b.getBoundingClientRect();
                    if (r.width > 120 && r.height > 60 && (b.innerText || '').trim()) best = b;
                  }
-                 if (!best) return 'noDialog';
+                 if (!best) return 'noDialog  ||opened=' + (window.__hanimeOpened || 'none');
                  var links = [];
                  var as = best.querySelectorAll('a, button');
                  for (var j = 0; j < as.length && links.length < 8; j++) {
                    var t = (as[j].getAttribute('aria-label') || as[j].textContent || '').trim().slice(0, 24);
                    if (t) links.push(t + (as[j].getAttribute('href') ? '->' + as[j].getAttribute('href') : ''));
                  }
-                 return (best.innerText || '').replace(/\s+/g, ' ').slice(0, 320) + '  ||controls: ' + links.join(' ; ');
+                 return (best.innerText || '').replace(/\s+/g, ' ').slice(0, 320) +
+                        '  ||controls: ' + links.join(' ; ') +
+                        '  ||opened=' + (window.__hanimeOpened || 'none');
+               })();"""
+
+        /**
+         * Records where the page tried to open a new tab, and then lets it through: observing
+         * rather than altering is the rule this class follows everywhere.
+         */
+        private const val HOOK_WINDOW_OPEN =
+            """(function () {
+                 if (window.__hanimeHooked) return 'already';
+                 window.__hanimeHooked = true;
+                 var real = window.open;
+                 window.open = function (u) {
+                   window.__hanimeOpened = String(u || '');
+                   try { return real.apply(window, arguments); } catch (e) { return null; }
+                 };
+                 return 'hooked';
                })();"""
 
         private const val CLICK_DOWNLOAD =
