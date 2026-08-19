@@ -87,6 +87,13 @@ class HanimeWebView(private val userAgent: String) {
         val seen = mutableListOf<String>()
         val latch = CountDownLatch(1)
         var webView: WebView? = null
+        // ⚠️⚠️ ONE sequence per attempt, and this guard is the fix for a self-inflicted wound:
+        // the site is an Astro app with client-side transitions, so `onPageFinished` fires on
+        // every transition. Starting a new inventory-and-click chain each time produced 318
+        // clicks in one attempt, and the console said what that did: 'Transition was aborted
+        // because of timeout in DOM update' and 'Throttling navigation to prevent the browser
+        // from hanging'. The clicking was preventing the page from ever settling.
+        var started = false
         HanimeLog.log("PLAY load   $url")
 
         handler.post {
@@ -118,15 +125,14 @@ class HanimeWebView(private val userAgent: String) {
 
                 override fun onPageFinished(view: WebView, finishedUrl: String) {
                     HanimeLog.log("PLAY loaded $finishedUrl")
-                    // ⚠️ An inventory BEFORE clicking anything: the first attempt clicked five
-                    // times on a playlist element, because `[class*=play]` also matches
-                    // `playlist`. What is actually on the page has to be measured, not assumed.
-                    view.evaluateJavascript(DOM_INVENTORY) { HanimeLog.log("PLAY dom    $it") }
-                    // Some players only ask for the stream once playback starts, and a
-                    // WebView will not start on its own even with autoplay allowed: clicking
-                    // play is what a person would do on this same page. Repeated a few
-                    // times because the player is mounted after the page settles.
-                    clickPlay(view, 1)
+                    if (started) return
+                    started = true
+                    // The page is left alone for a while first: this app hydrates its
+                    // components after load, and touching it earlier is what broke it.
+                    handler.postDelayed({
+                        view.evaluateJavascript(DOM_INVENTORY) { HanimeLog.log("PLAY dom    $it") }
+                        clickPlay(view, 1)
+                    }, SETTLE_DELAY)
                 }
             }
             // ⚠️ A page download does NOT arrive as a subresource: a link that downloads
@@ -259,8 +265,9 @@ class HanimeWebView(private val userAgent: String) {
         private const val POLL_INTERVAL = 400L
         private const val MAX_POLLS = 60
         private const val MAX_SEEN = 60
-        private const val CLICK_ATTEMPTS = 5
-        private const val CLICK_INTERVAL = 2_500L
+        private const val CLICK_ATTEMPTS = 3
+        private const val CLICK_INTERVAL = 4_000L
+        private const val SETTLE_DELAY = 3_000L
 
         private val STATIC_ASSET =
             Regex("""\.(png|jpe?g|webp|gif|svg|ico|css|woff2?|ttf)(\?|$)""", RegexOption.IGNORE_CASE)
@@ -311,12 +318,10 @@ class HanimeWebView(private val userAgent: String) {
                    hits++;
                    out.push('clicked=' + n.tagName + '.' + String(n.className).slice(0, 40));
                  }
-                 if (!hits) {
-                   // Nothing named play: the poster itself is often the target.
-                   var poster = document.querySelector('[class*=player], [id*=player], [class*=poster], main img');
-                   if (poster) { poster.click(); out.push('clickedFallback=' + poster.tagName + '.' + String(poster.className).slice(0, 40)); }
-                   else out.push('nothingToClick');
-                 }
+                 // ⚠️ NO fallback click on the poster or on a generic container: that is what
+                 // fired navigations and aborted the site's own transitions. Better to report
+                 // that there was nothing to click than to poke the page at random.
+                 if (!hits) out.push('nothingNamedPlay');
                  out.push('iframes=' + document.querySelectorAll('iframe').length);
                  return out.join(' ');
                })();"""
@@ -333,13 +338,19 @@ class HanimeWebView(private val userAgent: String) {
                    seen.push(players[i].tagName + '.' + String(players[i].className).slice(0, 30));
                  }
                  r.push('players[' + players.length + ']=' + seen.join(','));
-                 var btns = document.querySelectorAll('button, [role=button]');
-                 var labels = [];
-                 for (var j = 0; j < btns.length && labels.length < 10; j++) {
+                 var btns = document.querySelectorAll('button, [role=button], a');
+                 var labels = [], dls = [];
+                 for (var j = 0; j < btns.length; j++) {
                    var t = (btns[j].getAttribute('aria-label') || btns[j].textContent || '').trim().slice(0, 22);
-                   if (t) labels.push(t);
+                   if (t && labels.length < 24) labels.push(t);
+                   // The download control is the one thing on this page that can lead to a
+                   // real address, so it is listed separately with its href.
+                   if (/download|mp4/i.test(t) && dls.length < 4) {
+                     dls.push(btns[j].tagName + '[' + t + ']href=' + (btns[j].getAttribute('href') || '-'));
+                   }
                  }
                  r.push('buttons[' + btns.length + ']=' + labels.join('|'));
+                 r.push('downloadCandidates=' + (dls.length ? dls.join(' ; ') : 'none'));
                  // Custom elements and shadow roots: a `video` inside a shadow tree is
                  // invisible to querySelector, and this page is built of web components.
                  var all = document.querySelectorAll('*');

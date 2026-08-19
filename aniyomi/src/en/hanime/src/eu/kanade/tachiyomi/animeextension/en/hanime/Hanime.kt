@@ -254,7 +254,15 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
             .thenByDescending { it.quality.height() },
     )
 
+    // ⚠️ The library's PreferenceScreen stub exposes only `addPreference`: no way to ask what
+    // is already on it. So the guard is the screen's own identity, which covers the case that
+    // showed up as overlapping rows on the device (the same screen populated twice) without
+    // breaking the normal one, where reopening settings brings a new screen.
+    private var populated: PreferenceScreen? = null
+
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        if (populated === screen) return
+        populated = screen
         SwitchPreferenceCompat(screen.context).apply {
             key = PREF_LOG_KEY
             title = "Write the debug log to a file"

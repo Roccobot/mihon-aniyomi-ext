@@ -122,11 +122,22 @@ passo lascia una traccia in `HanimeLog`, e si legge in tre modi, dal piu comodo 
 
 ## Che cosa si sa del player, misurato (2026-08-19)
 
-Prima traccia raccolta sul dispositivo, e nega l'ipotesi da cui era partita la via WebView:
+Tracce raccolte sul dispositivo. Un fatto positivo prima di tutto: **l'accesso funziona e
+arriva fino all'estensione** (cookie `htv_session` nel barattolo condiviso, `signInOffered=false`,
+menu con `Sign Out`, `My Channel` e `Account Settings`, e un `keep-alive` su
+`auth.hanime.tv`). Poi:
 
-- **nella pagina di un episodio non compare NESSUN elemento `video` e nessun `iframe`** (in
-  cinque tentativi a 2,5 secondi di distanza), quindi il player non si monta affatto e non
-  c'e nulla da avviare;
+- **nella pagina di un episodio non compare NESSUN elemento `video`, `iframe` o `canvas`**,
+  nemmeno da autenticato: gli unici elementi custom sono `astro-island` e `iconify-icon`, e
+  gli shadow root sono quelli delle icone;
+- ⚠️⚠️ **ma la prima misura era INQUINATA DA UN MIO DIFETTO, e va rifatta**: `onPageFinished`
+  scatta a **ogni transizione** di questa app Astro, e ogni scatto avviava una nuova sequenza
+  di inventario e clic. Nella traccia del 2026-08-19 si contano **318 clic** in un solo
+  tentativo, e la console del sito dice cosa producevano: `Transition was aborted because of
+  timeout in DOM update` e `Throttling navigation to prevent the browser from hanging`. Cioe
+  era il mio stesso rumore a impedire alla pagina di assestarsi. Da qui la guardia
+  `started`, l'attesa prima di toccare la pagina, tre tentativi invece di cinque, e
+  **nessun clic di ripiego** su poster o contenitori generici;
 - il sito e ora un'app **Astro** (`/_astro/*.js`), e fra i suoi componenti carica un
   `HTVPlayerPromotePremiumModal`: puo essere quel modale a prendere il posto del player per
   chi non e autenticato o non e abbonato;
