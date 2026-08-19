@@ -178,13 +178,17 @@ class HanimeWebView(private val userAgent: String) {
             view.evaluateJavascript(CLICK_DOWNLOAD) { outcome ->
                 HanimeLog.log("PLAY dl     $outcome")
             }
-            // ⚠️ What the click OPENED is the answer we lack: the trace shows the site doing
-            // its own handshake right after, then nothing, while it loads crown, block and
-            // upgrade icons. Reading the dialog says in one shot whether that is a paywall or
-            // a second step, instead of guessing between the two.
-            handler.postDelayed({
-                view.evaluateJavascript(MODAL_DUMP) { HanimeLog.log("PLAY modal  $it") }
-            }, MODAL_DELAY)
+            // ⚠️ What the click OPENED is the answer still missing: the site does its own
+            // handshake right after, loads crown, block and upgrade icons, and then a single
+            // sample 2,5s later reported `noDialog` with no new link anywhere. So the reply is
+            // neither a recognisable dialog nor an anchor, and one sample cannot tell 'nothing
+            // happened' from 'it happened later': hence three, spread out, reading the TEXT
+            // that appeared rather than looking for a shape.
+            listOf(1_500L, 5_000L, 11_000L).forEachIndexed { index, delay ->
+                handler.postDelayed({
+                    view.evaluateJavascript(MODAL_DUMP) { HanimeLog.log("PLAY after${index + 1} $it") }
+                }, delay)
+            }
         }
         if (attempt < CLICK_ATTEMPTS) {
             handler.postDelayed({ clickPlay(view, attempt + 1) }, CLICK_INTERVAL)
@@ -285,7 +289,6 @@ class HanimeWebView(private val userAgent: String) {
 
         private const val DOM_DUMP = "document.documentElement.outerHTML"
         private const val DOWNLOAD_ATTEMPT = 3
-        private const val MODAL_DELAY = 2_500L
 
         private const val MODAL_DUMP =
             """(function () {
@@ -303,8 +306,16 @@ class HanimeWebView(private val userAgent: String) {
                    var h = anchors[k].getAttribute('href') || '';
                    if (/^https?:/i.test(h) && h.indexOf('hanime.tv') < 0) ext.push(h.slice(0, 90));
                  }
+                 // ⚠️ The keyword window is what a shape-based search misses: the site's answer
+                 // may be plain text added to the page, with no dialog and no link, and this
+                 // returns the words around it rather than requiring it to look like a modal.
+                 var body = document.body ? (document.body.innerText || '') : '';
+                 var at = body.search(/download|premium|upgrade|region|unavailable|not available/i);
+                 var around = at < 0 ? 'noKeyword'
+                            : body.slice(Math.max(0, at - 120), at + 240).replace(/\s+/g, ' ');
                  var tail = '  ||external: ' + (ext.length ? ext.join(' ; ') : 'none') +
-                            '  ||opened=' + (window.__hanimeOpened || 'none');
+                            '  ||opened=' + (window.__hanimeOpened || 'none') +
+                            '  ||around: ' + around;
                  if (!best) return 'noDialog' + tail;
                  var links = [];
                  var as = best.querySelectorAll('a, button');
