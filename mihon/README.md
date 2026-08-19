@@ -65,9 +65,17 @@ diverse e soprattutto metadati del manifest diversi. ⚠️ Qui il manifest dich
 installa senza errori e che poi l'app **non riconosce mai** come sorgente, che è il difetto più
 difficile da diagnosticare di tutti.
 
-- La libreria è **`com.github.mihonapp:extensions-lib`**, versione `1.6.0`. ⚠️ Su JitPack ne
-  esistono altre due che sembrano equivalenti e non lo sono: `tachiyomiorg` si ferma alla `1.4.4` e
-  `keiyoushi` alla `1.4.2.1`, entrambe dell'era precedente al fork. La scelta è stata fatta
-  leggendo i metadati pubblicati, non a memoria.
+- ⚠️⚠️ **La libreria è `com.github.keiyoushi:extensions-lib` `1.4.2.1`, e NON la più recente**,
+  che sarebbe `mihonapp:extensions-lib` `1.6.0`. La ragione è misurata sulla prima build:
+  quella libreria è compilata con **Kotlin 2.4**, questo telaio gira a **Kotlin 1.8.22**, e un
+  compilatore che non sa leggere i metadati della classe base dichiara **irrisolto ogni membro
+  ereditato**. Il risultato è una cascata di decine di errori che sembrano tutti difetti del
+  sorgente e non lo sono: l'unico vero è la riga sulla versione incompatibile, che sta in cima.
+  - **Perché non si alza Kotlin e basta**: salire alla 2.4 vuol dire muovere insieme Kotlin, AGP
+    e il linter, cioè un lavoro a sé con più variabili in gioco, e farebbe divergere questo
+    telaio da quello di `aniyomi/`, che resta alla 1.8.22.
+  - **Perché la libreria vecchia non è un ripiego scadente**: è quella con cui compila il parco
+    di estensioni mantenute per Mihon, ed è dichiarata `compileOnly`, quindi serve solo a
+    conoscere le firme in compilazione: **a runtime le classi le fornisce l'app**.
 - Il telaio è quello di `aniyomi/`, adattato: stesso Gradle, stesso `core`, stesse convenzioni.
   Quello che cambia è elencato qui sopra, e nient'altro.

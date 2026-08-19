@@ -10,11 +10,15 @@ gradle-kotlin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.
 gradle-kotlin-serialization = { module = "org.jetbrains.kotlin:kotlin-serialization", version.ref = "kotlin_version" }
 gradle-kotlinter = { module = "org.jmailen.gradle:kotlinter-gradle", version = "3.15.0" }
 
-# The Mihon extension API. ⚠️ Three coordinates exist on JitPack and they are not
-# interchangeable: `tachiyomiorg` stops at 1.4.4 and `keiyoushi` at 1.4.2.1, both from the
-# pre-fork era, while `mihonapp` is the one the current app ships against. Checked against
-# the published metadata, not from memory.
-mihon-lib = { module = "com.github.mihonapp:extensions-lib", version = "1.6.0" }
+# The Mihon extension API. ⚠️ TWO coordinates exist on JitPack and the newest is NOT the
+# right one here: `mihonapp:1.6.0` is compiled with Kotlin 2.4, this framework runs Kotlin
+# 1.8.22, and a compiler that cannot read the metadata of the base class reports every
+# inherited member as unresolved. The build fails with dozens of errors that all look like
+# mistakes in the source and are not: measured on the first CI run, 2026-08-19.
+# `keiyoushi:1.4.2.1` is the one the maintained Mihon extensions compile against, and the
+# library is `compileOnly` anyway: the classes come from the app at runtime.
+# Moving to 1.6.0 means raising Kotlin, AGP and kotlinter together, which is a job of its own.
+mihon-lib = { module = "com.github.keiyoushi:extensions-lib", version = "1.4.2.1" }
 
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib-jdk8", version.ref = "kotlin_version" }
 kotlin-protobuf = { module = "org.jetbrains.kotlinx:kotlinx-serialization-protobuf", version.ref = "serialization_version" }
