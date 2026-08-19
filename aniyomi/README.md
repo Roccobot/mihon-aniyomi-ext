@@ -88,8 +88,8 @@ estensione: **stesso titolo una volta tolto il numero finale, stessa serie**. Co
   sotto due voci diverse a seconda della ricerca che l'ha trovata. Si usa **l'episodio 1**
   come rappresentante fisso del gruppo, perche su questo sito la numerazione parte da 1.
 - ⚠️ **La franchise del sito NON e la serie**: contiene anche sequel e spin-off, quindi la
-  lista episodi la filtra sul titolo del gruppo. Prendendola intera, `Titolo IV` finirebbe
-  dentro `Titolo III`.
+  lista episodi la filtra sulla **base dello slug** del gruppo. Prendendola intera,
+  `Titolo IV` finirebbe dentro `Titolo III`.
 - **Limite noto, dichiarato**: la deduplica vede **una schermata** per volta, cioe i link
   presenti nel DOM di quella pagina. Se due episodi della stessa serie non ci stanno insieme,
   in esplorazione la voce puo comparire due volte; in **libreria no**, perche le due voci
