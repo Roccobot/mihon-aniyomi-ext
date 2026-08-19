@@ -92,9 +92,32 @@ passo lascia una traccia in `HanimeLog`, e si legge in tre modi, dal piu comodo 
   **l'indirizzo che viene passato al player** di Aniyomi.
 - **Il clic su Play si ritenta cinque volte** a distanza di 2,5 secondi: il player viene
   montato dopo che la pagina si e assestata, quindi un tentativo solo arriva troppo presto.
+- ⚠️⚠️ **`[class*=play]` NON si usa per trovare il pulsante Play**, e la traccia lo ha
+  dimostrato: quel selettore combacia anche con **`playlist`**, di cui la pagina e piena,
+  quindi i cinque tentativi cliccavano una voce della playlist **dichiarando successo**. Ora
+  i candidati si filtrano su una parola intera (`play`, `watch`, `guarda`, `riproduci`) con
+  `playlist` escluso, e la traccia riporta **su cosa** ha cliccato, non solo che ha cliccato.
+- ⚠️ **Prima di cliccare si registra un INVENTARIO della pagina**: quanti `video`, `iframe`
+  e `canvas`, gli elementi con classe o id da player, le etichette dei primi pulsanti e
+  l'inizio del testo visibile. E' la misura che dice se un player esiste, invece di
+  dedurlo.
 - ⚠️ **La traccia e un anello di 400 righe** e non una lista che cresce: questo oggetto vive
   quanto l'app, e un log illimitato sarebbe una perdita di memoria. Scrivere su file non puo
   far cadere la riproduzione: se la scrittura fallisce, si prosegue.
+
+## Che cosa si sa del player, misurato (2026-08-19)
+
+Prima traccia raccolta sul dispositivo, e nega l'ipotesi da cui era partita la via WebView:
+
+- **nella pagina di un episodio non compare NESSUN elemento `video` e nessun `iframe`** (in
+  cinque tentativi a 2,5 secondi di distanza), quindi il player non si monta affatto e non
+  c'e nulla da avviare;
+- il sito e ora un'app **Astro** (`/_astro/*.js`), e fra i suoi componenti carica un
+  `HTVPlayerPromotePremiumModal`: puo essere quel modale a prendere il posto del player per
+  chi non e autenticato o non e abbonato;
+- ⚠️ **il catalogo passa da un host nuovo**, `guest.freeanimehentai.net/api/v11/search_hvs`,
+  con un **GET**: il `guest.` nel nome dice che esiste una via da ospite, e questo era
+  sconosciuto quando la sorgente e stata scritta.
 
 ## Nomi degli episodi: solo il numero
 

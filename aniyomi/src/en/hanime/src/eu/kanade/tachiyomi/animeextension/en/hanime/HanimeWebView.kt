@@ -117,6 +117,10 @@ class HanimeWebView(private val userAgent: String) {
 
                 override fun onPageFinished(view: WebView, finishedUrl: String) {
                     HanimeLog.log("PLAY loaded $finishedUrl")
+                    // ⚠️ An inventory BEFORE clicking anything: the first attempt clicked five
+                    // times on a playlist element, because `[class*=play]` also matches
+                    // `playlist`. What is actually on the page has to be measured, not assumed.
+                    view.evaluateJavascript(DOM_INVENTORY) { HanimeLog.log("PLAY dom    $it") }
                     // Some players only ask for the stream once playback starts, and a
                     // WebView will not start on its own even with autoplay allowed: clicking
                     // play is what a person would do on this same page. Repeated a few
@@ -232,16 +236,56 @@ class HanimeWebView(private val userAgent: String) {
                  out.push('video=' + (v ? (v.currentSrc || v.src || 'no-src') : 'none'));
                  if (v) {
                    v.muted = true;
-                   try { var p = v.play(); if (p && p.then) { p.then(function () {}, function (e) {}); } } catch (e) { out.push('playErr=' + e.name); }
+                   try { var p = v.play(); if (p && p.then) { p.then(function () {}, function () {}); } } catch (e) { out.push('playErr=' + e.name); }
                    out.push('paused=' + v.paused + ' ready=' + v.readyState + ' net=' + v.networkState);
+                   return out.join(' ');
                  }
-                 var sel = ['[class*=play]', '[aria-label*=lay]', '[title*=lay]', 'button'];
-                 for (var i = 0; i < sel.length; i++) {
-                   var b = document.querySelector(sel[i]);
-                   if (b) { b.click(); out.push('clicked=' + sel[i]); break; }
+                 // ⚠️ 'playlist' must NOT match: the first version clicked that instead of the
+                 // play button, five times, and reported success while doing nothing.
+                 var nodes = document.querySelectorAll('button, [role=button], a, div[class], span[class]');
+                 var wanted = /(^|[^a-z])(play|watch|guarda|riproduci)([^a-z]|$)/i;
+                 var hits = 0;
+                 for (var i = 0; i < nodes.length && hits < 3; i++) {
+                   var n = nodes[i];
+                   var hay = (n.getAttribute('aria-label') || '') + ' ' + (n.getAttribute('title') || '') +
+                             ' ' + (n.className || '') + ' ' + (n.textContent || '').slice(0, 40);
+                   if (/playlist/i.test(hay) || !wanted.test(hay)) continue;
+                   n.click();
+                   hits++;
+                   out.push('clicked=' + n.tagName + '.' + String(n.className).slice(0, 40));
+                 }
+                 if (!hits) {
+                   // Nothing named play: the poster itself is often the target.
+                   var poster = document.querySelector('[class*=player], [id*=player], [class*=poster], main img');
+                   if (poster) { poster.click(); out.push('clickedFallback=' + poster.tagName + '.' + String(poster.className).slice(0, 40)); }
+                   else out.push('nothingToClick');
                  }
                  out.push('iframes=' + document.querySelectorAll('iframe').length);
                  return out.join(' ');
+               })();"""
+
+        // The measurement that says what to click and whether a player exists at all.
+        private const val DOM_INVENTORY =
+            """(function () {
+                 var r = ['video=' + document.querySelectorAll('video').length,
+                          'iframe=' + document.querySelectorAll('iframe').length,
+                          'canvas=' + document.querySelectorAll('canvas').length];
+                 var players = document.querySelectorAll('[class*=player], [id*=player], [class*=plyr], [class*=jw]');
+                 var seen = [];
+                 for (var i = 0; i < players.length && i < 8; i++) {
+                   seen.push(players[i].tagName + '.' + String(players[i].className).slice(0, 30));
+                 }
+                 r.push('players[' + players.length + ']=' + seen.join(','));
+                 var btns = document.querySelectorAll('button, [role=button]');
+                 var labels = [];
+                 for (var j = 0; j < btns.length && labels.length < 10; j++) {
+                   var t = (btns[j].getAttribute('aria-label') || btns[j].textContent || '').trim().slice(0, 22);
+                   if (t) labels.push(t);
+                 }
+                 r.push('buttons[' + btns.length + ']=' + labels.join('|'));
+                 var body = document.body ? document.body.innerText.slice(0, 160).replace(/\s+/g, ' ') : '';
+                 r.push('text=' + body);
+                 return r.join('  ');
                })();"""
     }
 }
