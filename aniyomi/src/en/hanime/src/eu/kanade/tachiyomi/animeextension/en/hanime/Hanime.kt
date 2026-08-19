@@ -18,6 +18,7 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.net.URLEncoder
 
 /**
  * hanime.tv, read through the site's own pages in the app's WebView.
@@ -233,12 +234,15 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
     companion object {
         private const val VIDEO_PATH = "/videos/hentai/"
 
-        // ⚠️ TO CONFIRM on the device: these three are the site's own page addresses, and
-        // they are the only guess left in this source. If a list comes back empty, it is
-        // almost certainly one of these being wrong, not the parsing.
-        private const val BROWSE_URL = "https://hanime.tv/browse/trending?time=month"
-        private const val LATEST_URL = "https://hanime.tv/browse/recent"
-        private fun searchUrl(query: String) = "https://hanime.tv/search?query=${query.replace(' ', '+')}"
+        // Confirmed by the user from the site itself, 2026-08-19: the search parameter is
+        // `q` and NOT `query`, and 'latest' is the home page rather than a browse path.
+        // Guessing these was what left the first version with empty lists.
+        private const val BROWSE_URL = "https://hanime.tv/browse"
+        private const val LATEST_URL = "https://hanime.tv/"
+        private const val SEARCH_ORDER = "created_at_desc"
+
+        private fun searchUrl(query: String) =
+            "https://hanime.tv/search?q=${URLEncoder.encode(query, "UTF-8")}&order=$SEARCH_ORDER"
 
         private val VIDEO_LINK = Regex(Regex.escape(VIDEO_PATH))
         private val MEDIA_URL = Regex("""\.(m3u8|mp4)(\?|$)""")

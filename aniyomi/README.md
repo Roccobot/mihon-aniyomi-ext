@@ -47,10 +47,10 @@ con la sessione dell'utente, e l'estensione legge il risultato (vedi `HanimeWebV
 - ⚠️ **Tutto passa dal thread principale e blocca quello chiamante**: una WebView non si
   tocca da un thread di lavoro, mentre le sorgenti sono chiamate da thread IO. Da qui
   l'`Handler` piu il latch, e il timeout su ogni ingresso.
-- ⚠️ **Restano tre indovinelli, ed e l'unica parte non misurata**: gli indirizzi delle pagine
-  di esplorazione, ultimi arrivi e ricerca (le costanti marcate `TO CONFIRM` in
-  `Hanime.kt`). Se un elenco torna vuoto, la causa e quasi certamente uno di quei tre, non
-  il parsing.
+- **I tre indirizzi delle pagine sono CONFERMATI dall'utente sul sito** (2026-08-19), non
+  dedotti: `hanime.tv/browse` per l'esplorazione, la **home** per gli ultimi arrivi, e
+  `hanime.tv/search?q=<parola>&order=created_at_desc` per la ricerca. ⚠️ Il parametro e `q`
+  e **non** `query`, che e l'ipotesi con cui era nata la prima versione.
 - **Niente paginazione, per ora**: il sito pagina scorrendo, e un numero di pagina che
   questa sorgente non puo verificare sarebbe una promessa non mantenuta.
 
