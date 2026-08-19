@@ -120,6 +120,26 @@ passo lascia una traccia in `HanimeLog`, e si legge in tre modi, dal piu comodo 
   quanto l'app, e un log illimitato sarebbe una perdita di memoria. Scrivere su file non puo
   far cadere la riproduzione: se la scrittura fallisce, si prosegue.
 
+## ⚠️⚠️ IL FLUSSO E' UN LINK ESTERNO, non qualcosa che il player espone
+
+Fatto riferito dall'utente e verificato (2026-08-19), ed e la forma di tutta la sorgente: a un
+account **con la sessione attiva** la pagina dell'episodio linka un file su un **host di terze
+parti** (nel caso misurato `pixeldrain.net/u/<id>`), e da la il download e un clic normale.
+Niente handshake, niente intercettazione, niente da ricostruire: **l'indirizzo sta nella
+pagina**.
+
+- ⚠️ **Da disconnessi quel link NON C'E**, e questo spiega tutti i tentativi andati a vuoto:
+  cercavano un player che quella pagina non ha.
+- ⚠️ **La pagina `/u/<id>` non si passa al player**, che riceverebbe HTML: pixeldrain serve i
+  byte a **`/api/file/<id>`**. Misurato su quell'esempio: `200`, `content-type: video/mp4`,
+  185 MB, `Accept-Ranges: bytes` e `206` su una richiesta di intervallo, quindi **si riproduce
+  in streaming** e non va scaricato tutto; il nome del file dichiara `720p`.
+- La ricerca del link parte dalla **pagina resa senza cliccare niente** (la via piu economica);
+  la vecchia strada della WebView coi clic resta solo come **ripiego**, per il caso in cui il
+  link compaia dopo l'uso del controllo di download.
+- Se il link manca, l'errore lo dice in chiaro: **accedi dal tasto WebView**, perche e la
+  sessione a fare comparire l'indirizzo.
+
 ## Che cosa si sa del player, misurato (2026-08-19)
 
 Tracce raccolte sul dispositivo. Un fatto positivo prima di tutto: **l'accesso funziona e

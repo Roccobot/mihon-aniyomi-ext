@@ -211,36 +211,74 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
             .also { HanimeLog.log("EPS  group $group -> ${it.size}: ${it.take(6).joinToString { e -> e.name }}") }
     }
 
+    /**
+     * The stream is an EXTERNAL DOWNLOAD LINK, not something the page's player exposes, and
+     * that is the whole shape of this source (fact from the user, 2026-08-19, with a measured
+     * example): to a signed-in account the episode page links a file on a third-party host,
+     * `pixeldrain.net/u/<id>` in the case seen, and downloading from there is a plain click.
+     * No handshake, no interception, nothing to reproduce: the address is in the page.
+     *
+     * ⚠️ Signed OUT the link is simply absent, which is why every earlier attempt found
+     * nothing: it was looking for a player that this page does not have.
+     */
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
-        // A separator instead of asking anyone to clear the log first: the ritual of
-        // searching `debug clear` before every attempt is invisible in a search field, and a
-        // trace nobody can find the start of is as good as no trace.
         HanimeLog.log("──────── playback attempt: ${episode.url} ────────")
         HanimeLog.log("PLAY session cookies: ${webView.cookieNames(baseUrl)}")
+
+        // First and cheapest: the rendered page, with no clicking at all.
+        val page = Jsoup.parse(webView.renderedHtml(baseUrl + episode.url, VIDEO_LINK), baseUrl)
+        val external = page.select("a[href]")
+            .map { it.attr("abs:href") }
+            .filter { it.isNotBlank() && !it.contains("hanime.tv", ignoreCase = true) }
+            .distinct()
+        HanimeLog.log("PLAY external links: ${external.take(8).joinToString(" | ").ifBlank { "none" }}")
+
+        val fromPage = external.firstNotNullOfOrNull { it.asDirectFile() }
+        if (fromPage != null) {
+            HanimeLog.log("PLAY direct from page: $fromPage")
+            return listOf(videoOf(fromPage))
+        }
+
+        // Otherwise the link may appear only after the page's own download control is used,
+        // so the WebView route stays as the fallback rather than being thrown away.
         val result = webView.interceptMedia(baseUrl + episode.url, MEDIA_URL)
-        // ⚠️ The failure message carries what the page actually requested: without it, 'no
-        // stream found' is unfixable, since this side has no way to watch the site itself.
-        val (url, requestHeaders) = result.hit ?: throw Exception(
-            "No stream in ${HanimeWebView.DEFAULT_TIMEOUT / 1000}s. Sign in to hanime.tv in " +
-                "the app's WebView if you are signed out. The player requested: " +
-                result.seen.takeLast(6).joinToString(" | ").ifBlank { "nothing at all" },
+        val hit = result.hit ?: throw Exception(
+            "No download link on the page. Sign in to hanime.tv from the WebView button: the " +
+                "link to the file host only exists for a signed-in account. Requests seen: " +
+                result.seen.takeLast(5).joinToString(" | ").ifBlank { "none" },
         )
+        val (raw, requestHeaders) = hit
+        val url = raw.asDirectFile() ?: raw
+        HanimeLog.log("PLAY handing to player: $url")
+        return listOf(videoOf(url, requestHeaders))
+    }
+
+    private fun videoOf(url: String, requestHeaders: Map<String, String> = emptyMap()): Video {
         val built = Headers.Builder().apply {
             requestHeaders.forEach { (key, value) -> add(key, value) }
             if (requestHeaders.keys.none { it.equals("Referer", ignoreCase = true) }) {
                 add("Referer", "$baseUrl/")
             }
-            // ⚠️⚠️ THE COOKIE HAS TO BE PASSED ON, and this is the piece that was missing:
-            // Aniyomi's player does not talk through the WebView, it uses this extension's
-            // http client, which knows nothing of the session created by signing in. On a
-            // site where the download is for registered users only, an address handed over
-            // without the cookie is an address that answers 403.
+            // ⚠️⚠️ THE COOKIE HAS TO BE PASSED ON: Aniyomi's player does not talk through the
+            // WebView, it uses this extension's http client, which knows nothing of the session
+            // created by signing in. Harmless on a public file host, decisive when the address
+            // belongs to the site itself.
             if (requestHeaders.keys.none { it.equals("Cookie", ignoreCase = true) }) {
                 webView.cookieHeader(url)?.let { add("Cookie", it) }
             }
         }.build()
-        HanimeLog.log("PLAY handing to player: ${url.qualityLabel()} $url")
-        return listOf(Video(url, url.qualityLabel(), url, built))
+        return Video(url, url.qualityLabel(), url, built)
+    }
+
+    /**
+     * A file-host PAGE turned into the file itself, or null when this is not one of them.
+     * ⚠️ Handing the player the `/u/<id>` page would give it HTML to play: pixeldrain serves
+     * the bytes at `/api/file/<id>`, which answers range requests, so it can be streamed
+     * instead of downloaded whole.
+     */
+    private fun String.asDirectFile(): String? {
+        PIXELDRAIN_PAGE.find(this)?.let { return "https://pixeldrain.net/api/file/${it.groupValues[1]}" }
+        return takeIf { MEDIA_URL.containsMatchIn(it) }
     }
 
     /**
@@ -339,7 +377,8 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
             "https://hanime.tv/search?q=${URLEncoder.encode(query, "UTF-8")}&order=$SEARCH_ORDER"
 
         private val VIDEO_LINK = Regex(Regex.escape(VIDEO_PATH))
-        private val MEDIA_URL = Regex("""\.(m3u8|mp4)(\?|$)""")
+        private val MEDIA_URL = Regex("""\.(m3u8|mp4)(\?|$)|pixeldrain\.(net|com)/(u|api/file)/""")
+        private val PIXELDRAIN_PAGE = Regex("""pixeldrain\.(?:net|com)/u/([A-Za-z0-9]+)""")
 
         // ⚠️ ARABIC digits only, and only at the very end: titles carry roman numerals as
         // part of the name ('Anime Titolo III'), and a greedier pattern would merge three
