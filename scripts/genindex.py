@@ -103,7 +103,10 @@ def main() -> None:
         json.dumps(
             {
                 "meta": {
-                    "name": f"Roccobot ({ecosistema})",
+                    # ⚠️ Senza il nome dell'ecosistema: ogni app vede un repository solo,
+                    # quindi un suffisso che distingua i due non disambigua nulla per chi legge
+                    # e aggiunge rumore dove serve un nome.
+                    "name": "Roccobot",
                     "website": "https://roccobot.github.io/mihon-aniyomi-ext/",
                     "signingKeyFingerprint": impronta,
                 },

@@ -4,10 +4,10 @@ name: Mihon - nhentai
 on:
   push:
     branches: [main]
-    paths: ['mihon/**', '.github/workflows/mihon-nhentai.yml']
+    paths: ['mihon/**', 'scripts/**', '.github/workflows/mihon-nhentai.yml']
     tags: ['m*']
   pull_request:
-    paths: ['mihon/**', '.github/workflows/mihon-nhentai.yml']
+    paths: ['mihon/**', 'scripts/**', '.github/workflows/mihon-nhentai.yml']
   workflow_dispatch:
 
 # ⚠️ I due workflow scrivono nella STESSA release: senza questa coda possono leggere il corpo

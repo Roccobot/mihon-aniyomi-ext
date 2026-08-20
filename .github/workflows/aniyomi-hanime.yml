@@ -4,10 +4,10 @@ name: Aniyomi - hanime.tv
 on:
   push:
     branches: [main]
-    paths: ['aniyomi/**', '.github/workflows/aniyomi-hanime.yml']
+    paths: ['aniyomi/**', 'scripts/**', '.github/workflows/aniyomi-hanime.yml']
     tags: ['v*']
   pull_request:
-    paths: ['aniyomi/**', '.github/workflows/aniyomi-hanime.yml']
+    paths: ['aniyomi/**', 'scripts/**', '.github/workflows/aniyomi-hanime.yml']
   workflow_dispatch:
 
 # ⚠️ I due workflow scrivono nella STESSA release: senza questa coda possono leggere il corpo
