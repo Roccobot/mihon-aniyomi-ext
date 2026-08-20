@@ -6,7 +6,7 @@ installa a mano sul telefono.
 | cartella | ecosistema | che cosa contiene |
 |---|---|---|
 | [`aniyomi/`](aniyomi/) | [Aniyomi](https://github.com/aniyomiorg/aniyomi) (anime) | sorgente **hanime.tv**, che in app si chiama `Hanime Roccobot` |
-| `mihon/` | [Mihon](https://github.com/mihonapp/mihon) (manga) | ancora niente |
+| [`mihon/`](mihon/) | [Mihon](https://github.com/mihonapp/mihon) (manga) | sorgente **nhentai.net**, che in app si chiama `nhentai Roccobot` |
 
 ## Perché due cartelle e non una
 
