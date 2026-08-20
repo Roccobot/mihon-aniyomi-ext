@@ -34,6 +34,43 @@ build completo, non hanno alcun punto di contatto da mantenere allineato.
 
 Il dettaglio di com'è fatta ogni sorgente sta nel README della sua cartella.
 
+## ⚠️⚠️ Quando il difetto non è nell'estensione: i blocchi di rete
+
+Vale per **tutte** le sorgenti di questo repository, e va escluso **prima** di andare a
+cercare un difetto nel codice, perché i due casi si somigliano e la diagnosi costa un minuto.
+
+**Come si riconosce.** L'errore arriva **prima di qualunque risposta HTTP**, ed è di
+connessione, non di analisi della pagina. Il caso misurato il 2026-08-20 sul telefono:
+
+```
+ConnectException: Failed to connect to nhentai.net/[::1]:443
+```
+
+⚠️ `[::1]` è **localhost**: quel nome non è stato risolto all'indirizzo del sito ma
+all'apparecchio stesso, che è il modo in cui un blocco a livello di DNS fa fallire un dominio.
+Nessuna riga di questo repository può produrre quell'esito: la richiesta non esce dal telefono.
+Dalla rete di sviluppo, nello stesso momento, lo stesso nome risolveva agli indirizzi veri e
+l'API rispondeva `200`.
+
+**Il secondo indizio, sull'altra estensione**, viene dal sito stesso: la pagina di hanime.tv
+chiede `/country_code` e poi scrive *'Your country has blocked the file host (Pixeldrain)'*.
+Due domini diversi, due estensioni diverse, un fattore comune che non è il codice.
+
+**Che cosa provare, in ordine**, dal più rapido:
+
+1. **Aprire il dominio nel browser del telefono** (o il tasto 'Apri in WebView' dell'app). Se
+   non si apre nemmeno lì, il difetto non è nell'estensione e i punti seguenti sono la strada.
+2. **Attivare DNS over HTTPS nell'app**: sia Mihon sia Aniyomi ce l'hanno nelle impostazioni
+   avanzate. È il rimedio mirato se il blocco è quello che l'errore `[::1]` descrive, perché la
+   risoluzione dei nomi smette di passare per il resolver che restituisce localhost. ⚠️ Non
+   aiuta se il blocco è per indirizzo invece che per nome, e questo lo dice solo la prova.
+3. **Cambiare rete** (dati mobili invece del Wi-Fi, o viceversa): distingue un blocco del
+   router o di casa da uno del gestore.
+
+⚠️ **Un DNS che filtra i contenuti va escluso a sua volta**: se l'apparecchio usa un DNS
+privato con blocklist, sceglierne uno con la stessa blocklist come DoH lascia le cose come
+stanno.
+
 ## Quale versione sto scaricando
 
 Il nome degli allegati è **stabile**, quindi da solo non dice nulla sulla versione: è il prezzo

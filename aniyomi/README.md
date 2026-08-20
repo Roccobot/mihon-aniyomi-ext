@@ -158,10 +158,29 @@ pagina**.
 
 - ⚠️ **Da disconnessi quel link NON C'È**, e questo spiega tutti i tentativi andati a vuoto:
   cercavano un player che quella pagina non ha.
-- ⚠️ **La pagina `/u/<id>` non si passa al player**, che riceverebbe HTML: pixeldrain serve i
-  byte a **`/api/file/<id>`**. Misurato su quell'esempio: `200`, `content-type: video/mp4`,
-  185 MB, `Accept-Ranges: bytes` e `206` su una richiesta di intervallo, quindi **si riproduce
-  in streaming** e non va scaricato tutto; il nome del file dichiara `720p`.
+- ⚠️ **La pagina non si passa al player**, che riceverebbe HTML: pixeldrain serve i byte a un
+  endpoint dell'API, che risponde alle richieste di intervallo e quindi **si riproduce in
+  streaming** invece di essere scaricato tutto.
+- ⚠️⚠️ **Le forme di pagina sono DUE, e ognuna ha il suo endpoint**: non sono intercambiabili.
+
+  | pagina | byte |
+  |---|---|
+  | `pixeldrain.net/u/<id>` | `pixeldrain.net/api/file/<id>` |
+  | `pixeldrain.net/d/<id>` | `pixeldrain.net/api/filesystem/<id>` |
+
+  Misurato sui due titoli della traccia del 2026-08-20 (`wUVNHedH` e `whpZ1mcG`, entrambi
+  `/d/`): `206 Partial Content`, `Content-Type: video/mp4`, `Accept-Ranges: bytes`, 121 MB e
+  168 MB. Sullo stesso identificativo `/api/file/` risponde **`404 not_found`**, quindi
+  riscrivere una forma con l'endpoint dell'altra sembrerebbe un link morto invece di un errore.
+- ⚠️⚠️ **Ed è qui che stava l'intermittenza, per UNA LETTERA.** Fino alla 23 il riconoscimento
+  conosceva solo `/u/<id>`, mentre il sito linka `/d/<id>`: l'indirizzo era nella pagina e
+  nessuno lo vedeva. Il sintomo era indistinguibile da un clic andato a vuoto, e per questo due
+  versioni hanno lavorato sui clic senza toccare la causa.
+  - **Come si è visto**: la diagnostica `PLAY hosts`, aggiunta nella 23 per un'ipotesi
+    **diversa** (host differente per i titoli vecchi), stampava `https://pixeldrain.net/d/...`
+    mentre la riga accanto diceva `url? none`. **Due righe che si contraddicono sulla stessa
+    pagina**: è la sola ragione per cui la causa è saltata fuori, e il motivo per cui quella
+    diagnostica resta anche adesso che l'ipotesi che l'aveva generata è caduta.
 - La ricerca del link parte dalla **pagina resa senza cliccare niente** (la via più economica);
   la vecchia strada della WebView coi clic resta solo come **ripiego**, per il caso in cui il
   link compaia dopo l'uso del controllo di download.
