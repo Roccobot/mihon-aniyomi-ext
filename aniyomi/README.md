@@ -207,6 +207,28 @@ L'utente ha fotografato i passaggi, e sono **tre**, non uno:
   mancava un **secondo clic**.
 - ⚠️ **Mai la voce `Premium MP4 1080p`**, quella con la corona: su un account gratuito è un muro
   di pagamento, e l'estensione non finge di essere abbonata. L'ordine è 720p, 480p, 360p.
+- ⚠️⚠️ **NON FUNZIONA SEMPRE, e il colpevole probabile è il LIVELLO su cui si clicca** (traccia
+  dell'utente, 2026-08-20: 11 tentativi, 5 riusciti e 6 a mani vuote). Dalla `extVersionCode` 23
+  il primo clic va sull'elemento **cliccabile più interno** e non sulla riga che lo contiene, e
+  se dopo 9 secondi l'indirizzo non c'è si riprova sulla riga.
+  - **L'indizio che lo dice**: nei tentativi falliti il clic dichiarava successo su un'etichetta
+    letta come `Pixeldrain MP4720p`, **senza spazio** fra le due parti. Quel testo attaccato è la
+    firma di un **contenitore** che racchiude due elementi, non del pulsante: dove il gestore del
+    sito sta sul contenitore il clic funziona, dove sta su un figlio non fa nulla.
+  - ⚠️ **Perché l'ipotesi 'i titoli vecchi hanno un altro host' NON spiega i dati**: l'elenco
+    delle opzioni offerte è **identico** nei tentativi riusciti e in quelli falliti (Premium
+    1080p, Pixeldrain 720p, Pixeldrain 480p), e in tutti il pannello 'Leaving' non si apre
+    affatto invece di aprirsi con un altro indirizzo. Resta però **non esclusa**, perché la
+    ricerca dell'indirizzo guarda solo Pixeldrain: da qui la riga `PLAY hosts` della traccia,
+    che è **solo diagnostica** e non viene passata al player. Ogni host vuole la sua riscrittura,
+    e indovinarla per un nome mai visto sarebbe peggio che dichiararlo.
+  - ⚠️ **La finestra di osservazione si chiudeva troppo presto**: i campionamenti finivano 8
+    secondi dopo il clic mentre il tentativo intero aspetta 30, quindi un pannello che si apriva
+    in ritardo era indistinguibile da uno che non si apriva mai. Ora si guarda anche a 14 e 20
+    secondi.
+  - **Che cosa cercare nella prossima traccia**: la riga `PLAY option` ora dice **su quale
+    elemento** ha cliccato e con quale tag, ed elenca le opzioni trovate; se compare
+    `PLAY retry` vuol dire che il primo livello non è bastato.
 - ⚠️ **L'avviso del sito sul blocco di Pixeldrain è GENERICO e nel nostro caso FALSO**, e vale
   saperlo per non dare la colpa alla causa sbagliata al primo intoppo: il pannello dice 'il tuo
   Paese ha bloccato Pixeldrain, il link probabilmente non funzionerà', ma due misure
