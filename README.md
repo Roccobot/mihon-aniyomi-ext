@@ -162,7 +162,11 @@ niente, e per un soffio non è successo.
 | **'Analisi dell'app consigliata'** | *Play Protect non ha mai rilevato questa app prima d'ora* | **non si risolve qui** |
 
 ⚠️⚠️ **Il secondo non è eliminabile dal progetto, e non è un difetto**: Play Protect lo mostra
-per qualunque APK che Google non abbia mai visto. Un'estensione firmata con una chiave propria e
+per qualunque APK che Google non abbia mai visto.
+- **Perché le estensioni ufficiali non lo danno**, che è la prima domanda che viene: non per la
+  loro qualità ma per la loro **diffusione**. Quel preciso file è installato da decine di
+  migliaia di persone, quindi Google lo ha già visto e classificato. Questi APK invece esistono
+  su un telefono solo al mondo, e sono i primi a installarli. Un'estensione firmata con una chiave propria e
 mai passata da uno store è sconosciuta per definizione, e lo sarà **a ogni versione**, perché
 ogni build produce un file diverso. L'unico posto dove si spegne è il telefono: *Play Store ->
 profilo -> Play Protect -> impostazioni -> 'Migliora il rilevamento delle app dannose'*.
