@@ -38,17 +38,27 @@ class NHentai : HttpSource() {
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
-     * The four image hosts, asked for once and kept.
+     * The CDN hosts, asked for once and kept.
      *
-     * ⚠️ They are NOT shards: the same file answers `206 image/webp` on all four (measured), so
-     * spreading pages across them is politeness towards the site, not a requirement. Should the
-     * endpoint ever fail, the first host is assumed rather than letting the whole reader die.
+     * ⚠️⚠️ **TWO SETS, and they are not interchangeable**: covers and thumbnails live on the
+     * `t*` hosts, readable pages on the `i*` hosts. Asking the wrong set does NOT give a `404`
+     * that would point at the mistake: the connection is cut mid-stream (measured on
+     * `galleries/4126277`, where `thumb.webp` answers `200 image/webp` on `t1` and dies on `i1`,
+     * while `1.webp` does exactly the opposite). In the app that looks like covers failing to
+     * load for no reason, which is precisely the defect this pair of fields fixes.
+     *
+     * ⚠️ Within one set they ARE interchangeable: the same file answers on all four (measured),
+     * so spreading requests across them is politeness towards the site, not a requirement.
+     * Should the endpoint fail, the first host of each set is assumed rather than letting the
+     * whole reader die.
      */
-    private val imageServers: List<String> by lazy {
+    private val cdn: CdnDto by lazy {
         runCatching {
             val body = client.newCall(GET("$apiUrl/cdn", headers)).execute().use { it.body.string() }
-            json.decodeFromString<CdnDto>(body).imageServers
-        }.getOrElse { listOf("https://i1.nhentai.net") }
+            json.decodeFromString<CdnDto>(body)
+        }.getOrElse {
+            CdnDto(listOf("https://i1.nhentai.net"), listOf("https://t1.nhentai.net"))
+        }
     }
 
     // ── Browsing ──────────────────────────────────────────────────────────────────────
@@ -97,7 +107,7 @@ class NHentai : HttpSource() {
         return SManga.create().apply {
             url = "/g/${g.id}"
             title = g.title.pretty ?: g.title.english ?: g.title.japanese.orEmpty()
-            thumbnail_url = imageUrl(g.cover.path, 0)
+            thumbnail_url = thumbUrl(g.cover.path, 0)
             // Every tag type the site uses is folded into the genre line except the artists and
             // the groups, which are the closest thing here to an author and a scanlator.
             author = g.tags.filter { it.type == "artist" }.joinToString { it.name }
@@ -137,7 +147,7 @@ class NHentai : HttpSource() {
 
     override fun pageListParse(response: Response): List<Page> {
         val g = json.decodeFromString<GalleryDto>(response.body.string())
-        return g.pages.map { p -> Page(p.number - 1, "", imageUrl(p.path, p.number)) }
+        return g.pages.map { p -> Page(p.number - 1, "", pageUrl(p.path, p.number)) }
     }
 
     // ⚠️ Never called: every page carries its address already. It throws instead of returning
@@ -146,19 +156,28 @@ class NHentai : HttpSource() {
     override fun imageUrlParse(response: Response): String =
         throw UnsupportedOperationException("Not used: page urls are built from the gallery")
 
-    private fun imageUrl(path: String, index: Int): String =
-        "${imageServers[index % imageServers.size]}/$path"
+    // ⚠️ Two functions and not one with a flag: which host set a path belongs to is a property
+    // of the path, and a caller that has to remember a boolean gets it wrong exactly once, in
+    // the place where the mistake is invisible until an image silently fails to load.
+    private fun pageUrl(path: String, index: Int): String = cdn.imageServers.pick(index, path)
+
+    private fun thumbUrl(path: String, index: Int): String = cdn.thumbServers.pick(index, path)
+
+    private fun List<String>.pick(index: Int, path: String): String = "${this[index % size]}/$path"
 
     private fun toManga(entry: EntryDto) = SManga.create().apply {
         url = "/g/${entry.id}"
         title = entry.englishTitle ?: entry.japaneseTitle.orEmpty()
-        thumbnail_url = imageUrl(entry.thumbnail, entry.id)
+        thumbnail_url = thumbUrl(entry.thumbnail, entry.id)
     }
 
     // ── The shapes the API answers with ───────────────────────────────────────────────
 
     @Serializable
-    private class CdnDto(@SerialName("image_servers") val imageServers: List<String>)
+    private class CdnDto(
+        @SerialName("image_servers") val imageServers: List<String>,
+        @SerialName("thumb_servers") val thumbServers: List<String>,
+    )
 
     @Serializable
     private class EntryDto(
