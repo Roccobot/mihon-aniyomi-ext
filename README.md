@@ -35,6 +35,19 @@ applicazione, perché gli indici dei due ecosistemi non sono compatibili:
 | **Mihon** | `https://roccobot.github.io/mihon-aniyomi-ext/mihon/index.min.json` |
 | **Aniyomi** | `https://roccobot.github.io/mihon-aniyomi-ext/aniyomi/index.min.json` |
 
+- ⚠️⚠️ **Una versione appena pubblicata NON compare subito nell'app**, e non è un difetto: fra
+  la pubblicazione e il momento in cui l'elenco cambia sul telefono ci sono **due ritardi
+  sovrapposti**, e vale la pena distinguerli invece di rilanciare build a caso.
+  1. Il **deploy di Pages**, che può prendersi qualche minuto dopo che il workflow ha scritto
+     nel branch. ⚠️ Si riconosce dal fatto che il branch porta la versione nuova mentre
+     l'indirizzo pubblico serve ancora la vecchia: è successo, e il rimedio è aspettare.
+  2. La **cache**, doppia: quella della rete (GitHub Pages dichiara `max-age=600`, cioè dieci
+     minuti) e quella dell'app, che tiene l'elenco del repository finché non le si chiede di
+     rileggerlo. La seconda si scavalca con un tocco: **trascinare verso il basso** nella
+     scheda delle estensioni.
+  - **Come si distingue un ritardo da un guasto**, senza indovinare: si confronta quello che
+    dice il branch con quello che serve l'indirizzo pubblico. Se coincidono, il resto è cache
+    dell'app; se divergono, il deploy non è ancora arrivato.
 - ⚠️ **Vive nel branch `gh-pages` di QUESTO repository**, e la scelta è il punto della faccenda:
   una sede esterna (per esempio una cartella del sito personale) vorrebbe un token verso un
   altro repository e potrebbe **restare indietro in silenzio**. Qui build, APK e indice si
