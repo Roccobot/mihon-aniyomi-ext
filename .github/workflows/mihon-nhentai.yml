@@ -10,6 +10,13 @@ on:
     paths: ['mihon/**', '.github/workflows/mihon-nhentai.yml']
   workflow_dispatch:
 
+# ⚠️ I due workflow scrivono nella STESSA release: senza questa coda possono leggere il corpo
+# delle note nello stesso istante, e l'ultimo a scrivere cancellerebbe la riga dell'altro.
+# `cancel-in-progress: false` perché qui il secondo deve aspettare, non essere buttato via.
+concurrency:
+  group: release-latest
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Compila l'estensione Mihon
@@ -59,6 +66,17 @@ jobs:
             || gh release create latest --prerelease --title "Ultima build" \
                  --notes "APK delle estensioni di questo repository."
           gh release upload latest mihon-nhentai.apk --clobber
+          # ⚠️ Le note si riscrivono CONSERVANDO la riga dell'altra estensione: i due workflow
+          # scrivono nella stessa release, e un `--notes` secco cancellerebbe quello che ha
+          # appena scritto l'altro. Ogni riga porta il nome della sua estensione come marcatore.
+          # ⚠️ L'ora è quella ITALIANA, non UTC: la pagina della release la legge una persona,
+          # e due ore di scarto fra quello che vede e quello che le viene detto bastano a far
+          # credere di aver scaricato il file sbagliato.
+          MARK="Mihon nhentai"
+          QUANDO=$(TZ=Europe/Rome date '+%d/%m/%Y %H:%M %Z')
+          RIGA="- **$MARK**: \`mihon-nhentai.apk\`, da $(basename "$BUILT"), pubblicato il $QUANDO (commit \`$(echo "$GITHUB_SHA" | cut -c1-7)\`)."
+          VECCHIE=$(gh release view latest --json body -q .body | grep -v "\*\*$MARK\*\*" || true)
+          printf '%s\n%s\n' "$VECCHIE" "$RIGA" | gh release edit latest --notes-file -
 
       # Su tag: una Release che resta, per le versioni che vale la pena tenere. Il prefisso è
       # `m` perché `v*` appartiene già ai tag dell'estensione Aniyomi.

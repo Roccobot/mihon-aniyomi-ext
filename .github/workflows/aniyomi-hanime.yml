@@ -10,6 +10,13 @@ on:
     paths: ['aniyomi/**', '.github/workflows/aniyomi-hanime.yml']
   workflow_dispatch:
 
+# ⚠️ I due workflow scrivono nella STESSA release: senza questa coda possono leggere il corpo
+# delle note nello stesso istante, e l'ultimo a scrivere cancellerebbe la riga dell'altro.
+# `cancel-in-progress: false` perché qui il secondo deve aspettare, non essere buttato via.
+concurrency:
+  group: release-latest
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Compila l'estensione
@@ -59,11 +66,21 @@ jobs:
           # nuovo (la release si è ritrovata con la v14.16 e la v14.17 insieme). Con un nome
           # stabile l'allegato si sostituisce davvero, e l'indirizzo di download non cambia mai.
           cp "$BUILT" aniyomi-hanime.apk
-          NOTE="APK dell'estensione hanime.tv per Aniyomi: $(basename "$BUILT"), build ${GITHUB_SHA}."
           gh release view latest >/dev/null 2>&1 \
-            || gh release create latest --prerelease --title "Ultima build" --notes "$NOTE"
-          gh release edit latest --notes "$NOTE"
+            || gh release create latest --prerelease --title "Ultima build" \
+                 --notes "APK delle estensioni di questo repository."
           gh release upload latest aniyomi-hanime.apk --clobber
+          # ⚠️ Le note si riscrivono CONSERVANDO la riga dell'altra estensione: i due workflow
+          # scrivono nella stessa release, e un `--notes` secco cancellerebbe quello che ha
+          # appena scritto l'altro. Ogni riga porta il nome della sua estensione come marcatore.
+          # ⚠️ L'ora è quella ITALIANA, non UTC: la pagina della release la legge una persona,
+          # e due ore di scarto fra quello che vede e quello che le viene detto bastano a far
+          # credere di aver scaricato il file sbagliato.
+          MARK="Aniyomi hanime"
+          QUANDO=$(TZ=Europe/Rome date '+%d/%m/%Y %H:%M %Z')
+          RIGA="- **$MARK**: \`aniyomi-hanime.apk\`, da $(basename "$BUILT"), pubblicato il $QUANDO (commit \`$(echo "$GITHUB_SHA" | cut -c1-7)\`)."
+          VECCHIE=$(gh release view latest --json body -q .body | grep -v "\*\*$MARK\*\*" || true)
+          printf '%s\n%s\n' "$VECCHIE" "$RIGA" | gh release edit latest --notes-file -
           # Ripulisce gli allegati versionati rimasti dai giri precedenti.
           gh release view latest --json assets -q '.assets[].name' \
             | grep -v '^aniyomi-hanime\.apk$' \
