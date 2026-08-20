@@ -35,6 +35,23 @@ applicazione, perché gli indici dei due ecosistemi non sono compatibili:
 | **Mihon** | `https://roccobot.github.io/mihon-aniyomi-ext/mihon/index.min.json` |
 | **Aniyomi** | `https://roccobot.github.io/mihon-aniyomi-ext/aniyomi/index.min.json` |
 
+- ⚠️⚠️ **Una versione appena pubblicata NON compare subito nell'app**, e non è un difetto: fra
+  la pubblicazione e il momento in cui l'elenco cambia sul telefono ci sono **due ritardi
+  sovrapposti**, e vale la pena distinguerli invece di rilanciare build a caso.
+  1. Il **deploy di Pages**, che può prendersi qualche minuto dopo che il workflow ha scritto
+     nel branch. ⚠️ Si riconosce dal fatto che il branch porta la versione nuova mentre
+     l'indirizzo pubblico serve ancora la vecchia: è successo, e il rimedio è aspettare.
+  2. La **cache**, che GitHub Pages dichiara a `max-age=600`, cioè dieci minuti.
+     ⚠️⚠️ **NON si scavalca dall'app, e i tentativi che verrebbero in mente sono inutili**:
+     misurato il 2026-08-20, dove trascinare verso il basso nella scheda delle estensioni,
+     chiudere l'app del tutto e persino **togliere e riaggiungere il repository** hanno
+     lasciato l'elenco fermo alla versione precedente per oltre dieci minuti. La copia vive
+     nella cache del client HTTP, che sopravvive a tutti e tre. **L'unica cosa che funziona è
+     aspettare**, ed è meglio saperlo che provare per un quarto d'ora.
+  - **Come si distingue un ritardo da un guasto**, senza indovinare: si confronta quello che
+    dice il branch con quello che serve l'indirizzo pubblico, e poi con quello che mostra
+    l'app. Branch avanti e indirizzo indietro: manca il deploy. Tutti e due avanti e app
+    indietro: è la cache, e passa da sé.
 - ⚠️ **Vive nel branch `gh-pages` di QUESTO repository**, e la scelta è il punto della faccenda:
   una sede esterna (per esempio una cartella del sito personale) vorrebbe un token verso un
   altro repository e potrebbe **restare indietro in silenzio**. Qui build, APK e indice si
