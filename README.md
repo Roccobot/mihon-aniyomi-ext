@@ -62,6 +62,24 @@ CI pulito **non esiste e viene generato al volo**: ogni versione portava quindi 
   riporta esattamente al difetto di partenza. Va conservata fuori dal repository. Quella in uso
   scade nel 2056, quindi non è una scadenza da presidiare.
 
+## ⚠️ Play Protect: 'app non sicura bloccata'
+
+Un secondo ostacolo all'installazione, diverso dal precedente e con un'altra causa: Play Protect
+mostra *'Questa app è stata sviluppata per una versione precedente di Android'* e nasconde
+'Installa comunque' dietro un tocco in più.
+
+**La regola è aritmetica**: l'avviso scatta quando il `targetSdk` dell'APK è **più di due livelli
+sotto** l'API del dispositivo. Il telaio dichiarava `32` (Android 12L), quindi l'avviso compariva
+già su Android 15 (API 35) e a maggior ragione sul 16.
+
+- **Il target è `34`**, che copre i dispositivi fino ad Android 16 compreso senza avviso.
+- ⚠️ **È anche il tetto raggiungibile oggi**: `compileSdk 34` è il massimo che AGP 8.2.1 accetta.
+  Per il 35 servirebbe AGP 8.6 o più, cioè muovere il telaio e con esso Gradle e il linter: un
+  lavoro a sé, da fare quando l'avviso tornerà, non prima.
+- ⚠️ **Alzare il target di un'estensione non cambia come si comporta il codice**: le classi
+  girano nel processo dell'app che le carica, con il target di quella. Qui il numero serve solo a
+  dichiarare a Play Protect contro quale Android l'APK è stato costruito.
+
 ## ⚠️⚠️ Quando il difetto non è nell'estensione: i blocchi di rete
 
 Vale per **tutte** le sorgenti di questo repository, e va escluso **prima** di andare a
