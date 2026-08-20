@@ -232,9 +232,27 @@ class HanimeWebView(private val userAgent: String) {
         handler.postDelayed({
             view.evaluateJavascript(CLICK_OPTION) { HanimeLog.log("PLAY option $it") }
         }, OPTION_DELAY)
+        // ⚠️ A SECOND try on the outer row, because the first one may click the wrong level.
+        // Measured 2026-08-20 on a trace of eleven attempts, five of which never produced an
+        // address: the click always reported success on a label reading `Pixeldrain MP4720p`,
+        // with no space between the two parts, which is the signature of a CONTAINER holding
+        // two elements rather than of the button itself. Where the site's handler sits on that
+        // container the click works, where it sits on a child it does nothing at all, and that
+        // is a far better explanation of the intermittence than the file host, since the list
+        // of offered options is identical in the runs that work and in those that do not.
+        handler.postDelayed({
+            view.evaluateJavascript(FIND_EXTERNAL_URL) { raw ->
+                if (raw.trim('"') == "none") {
+                    view.evaluateJavascript(CLICK_OPTION_OUTER) { HanimeLog.log("PLAY retry  $it") }
+                }
+            }
+        }, OPTION_DELAY + RETRY_AFTER)
         // Step three, read instead of clicked: the address is in the panel's text. Sampled
         // more than once because the panel appears after the site's own handshake.
-        listOf(1_500L, 4_000L, 8_000L).forEach { delay ->
+        // ⚠️ The window used to close 8 seconds after the click while the whole attempt waits
+        // 30: seventeen seconds in which nobody was looking any more. A panel that opened late
+        // was therefore indistinguishable from one that never opened.
+        listOf(1_500L, 4_000L, 8_000L, 14_000L, 20_000L).forEach { delay ->
             handler.postDelayed({
                 view.evaluateJavascript(FIND_EXTERNAL_URL) { raw ->
                     val url = raw.trim('"').replace("\\/", "/").replace("\\\"", "")
@@ -242,6 +260,12 @@ class HanimeWebView(private val userAgent: String) {
                     if (url.startsWith("http")) onExternal(url)
                 }
                 view.evaluateJavascript(MODAL_DUMP) { HanimeLog.log("PLAY panel  $it") }
+                // ⚠️ Diagnostic only, and deliberately NOT fed to the player: if these titles
+                // are served by a different file host, its address shows up here and the next
+                // trace says so. Each host needs its own rewrite (Pixeldrain wants
+                // `/api/file/`), so guessing one from a name never seen would be worse than
+                // reporting it.
+                view.evaluateJavascript(EXTERNAL_HOSTS) { HanimeLog.log("PLAY hosts  $it") }
             }, OPTION_DELAY + delay)
         }
     }
@@ -354,33 +378,102 @@ class HanimeWebView(private val userAgent: String) {
 
         private const val OPTION_DELAY = 2_000L
 
+        // When the second click is tried: after the 8-second sample has come back empty, and
+        // early enough that the samples at 14 and 20 seconds can still see what it produced.
+        private const val RETRY_AFTER = 9_000L
+
         /**
          * Clicks one of the download options, and ⚠️ NEVER the crowned `Premium MP4 1080p`: on a
          * free account that one is a paywall, and this extension does not pretend to be a
          * subscriber. 720p first, then 480p, then 360p, matching the fixed quality of the source.
          */
-        private const val CLICK_OPTION =
-            """(function () {
-                 var nodes = document.querySelectorAll('button, [role=button], a, div');
-                 var opts = [];
-                 for (var i = 0; i < nodes.length; i++) {
-                   var t = (nodes[i].textContent || '').replace(/\s+/g, ' ').trim();
-                   // Short text only: a long one belongs to the container holding every option.
-                   if (t.length > 60 || !/pixeldrain/i.test(t) || /premium/i.test(t)) continue;
-                   opts.push({ node: nodes[i], text: t });
+        /**
+         * The option list, gathered once so both click helpers see the same candidates.
+         *
+         * ⚠️ It also DESCRIBES them, and that is the part that was missing: the old trace said
+         * only which label had been clicked, never which element, so a click on a wrapper and a
+         * click on the real control read identically in the log.
+         */
+        private const val OPTIONS_JS =
+            """var nodes = document.querySelectorAll('button, [role=button], a, div');
+               var opts = [];
+               for (var i = 0; i < nodes.length; i++) {
+                 var t = (nodes[i].textContent || '').replace(/\s+/g, ' ').trim();
+                 // Short text only: a long one belongs to the container holding every option.
+                 if (t.length > 60 || !/pixeldrain/i.test(t) || /premium/i.test(t)) continue;
+                 opts.push({ node: nodes[i], text: t });
+               }
+               function describe(n) {
+                 return n.tagName + (n.className ? '.' + String(n.className).slice(0, 24) : '') +
+                        (n.getAttribute('href') ? '[href]' : '');
+               }
+               function inventory() {
+                 var out = [];
+                 for (var q = 0; q < opts.length && q < 6; q++) {
+                   out.push(opts[q].text + '=' + describe(opts[q].node));
                  }
-                 if (!opts.length) return 'noPixeldrainOption';
+                 return out.join(' ; ');
+               }
+               function pick() {
                  var order = ['720', '480', '360'];
                  for (var k = 0; k < order.length; k++) {
                    for (var j = 0; j < opts.length; j++) {
-                     if (opts[j].text.indexOf(order[k]) >= 0) {
-                       opts[j].node.click();
-                       return 'clicked=' + opts[j].text;
-                     }
+                     if (opts[j].text.indexOf(order[k]) >= 0) return opts[j];
                    }
                  }
-                 opts[0].node.click();
-                 return 'clickedFirst=' + opts[0].text;
+                 return opts.length ? opts[0] : null;
+               }"""
+
+        /**
+         * First try: click the INNERMOST clickable element, not the row that contains it.
+         *
+         * ⚠️ Reversed on purpose from the previous version, which took whatever matched first in
+         * document order: containers come before their children there, so the wrapper was the
+         * usual winner and the click reached the site's handler only by luck.
+         */
+        private const val CLICK_OPTION =
+            """(function () {
+                 $OPTIONS_JS
+                 if (!opts.length) return 'noPixeldrainOption';
+                 var chosen = pick();
+                 var inner = chosen.node.querySelector('a[href], button, [role=button]');
+                 var target = inner || chosen.node;
+                 target.click();
+                 return 'clicked=' + chosen.text + ' on=' + describe(target) +
+                        (inner ? ' (inner)' : ' (self)') + ' | options=' + inventory();
+               })();"""
+
+        /** Second try, on the row itself: the mirror image of the first, for when the handler is there. */
+        private const val CLICK_OPTION_OUTER =
+            """(function () {
+                 $OPTIONS_JS
+                 if (!opts.length) return 'noPixeldrainOption';
+                 var chosen = pick();
+                 chosen.node.click();
+                 var up = chosen.node.parentElement;
+                 if (up) up.click();
+                 return 'clickedOuter=' + chosen.text + ' on=' + describe(chosen.node);
+               })();"""
+
+        /**
+         * Which external hosts the page mentions, diagnostic only.
+         *
+         * ⚠️ [FIND_EXTERNAL_URL] looks for Pixeldrain and nothing else, so a title served from
+         * somewhere else would come back empty-handed and look exactly like a click that failed.
+         * This tells the two apart in the next trace. The known-innocent hosts are filtered out,
+         * or every run would report the site's own Discord invite.
+         */
+        private const val EXTERNAL_HOSTS =
+            """(function () {
+                 var text = document.body ? (document.body.innerText || '') : '';
+                 var found = text.match(/https?:\/\/[a-z0-9.-]+\.[a-z]{2,}[^\s"'<>]*/gi) || [];
+                 var skip = /hanime\.tv|discord|theporndude|iconify|jsdelivr|freeanimehentai/i;
+                 var hosts = [];
+                 for (var i = 0; i < found.length; i++) {
+                   if (skip.test(found[i])) continue;
+                   if (hosts.indexOf(found[i]) < 0 && hosts.length < 6) hosts.push(found[i]);
+                 }
+                 return hosts.length ? hosts.join(' ; ') : 'none';
                })();"""
 
         /**
