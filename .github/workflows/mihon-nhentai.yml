@@ -75,8 +75,16 @@ jobs:
           MARK="Mihon nhentai"
           QUANDO=$(TZ=Europe/Rome date '+%d/%m/%Y %H:%M %Z')
           RIGA="- **$MARK**: \`mihon-nhentai.apk\`, da $(basename "$BUILT"), pubblicato il $QUANDO (commit \`$(echo "$GITHUB_SHA" | cut -c1-7)\`)."
-          VECCHIE=$(gh release view latest --json body -q .body | grep -v "\*\*$MARK\*\*" || true)
-          printf '%s\n%s\n' "$VECCHIE" "$RIGA" | gh release edit latest --notes-file -
+          # ⚠️ Si tengono le SOLE righe marcate (`- **`), non tutto il corpo tranne la propria:
+          # il testo scritto alla creazione della release non porta alcun marcatore, quindi con
+          # un filtro per sola esclusione sopravviveva a ogni riscrittura e avrebbe continuato a
+          # dichiarare una versione vecchia accanto a quella nuova. L'ordinamento tiene le due
+          # estensioni sempre nella stessa posizione, invece di alternarle a ogni pubblicazione.
+          VECCHIE=$(gh release view latest --json body -q .body \
+            | grep '^- \*\*' | grep -v "\*\*$MARK\*\*" || true)
+          NOTE=$(printf '%s\n%s\n' "$VECCHIE" "$RIGA" | grep . | sort)
+          printf 'APK delle estensioni di questo repository.\n\n%s\n' "$NOTE" \
+            | gh release edit latest --notes-file -
 
       # Su tag: una Release che resta, per le versioni che vale la pena tenere. Il prefisso è
       # `m` perché `v*` appartiene già ai tag dell'estensione Aniyomi.
