@@ -21,6 +21,42 @@ build completo, non hanno alcun punto di contatto da mantenere allineato.
 - Ogni cartella ha il **suo** workflow in [`.github/workflows/`](.github/workflows), perché
   GitHub legge i workflow solo dalla radice del repository.
 
+## ⚠️⚠️ Il repository di estensioni: l'unico canale che fa arrivare gli aggiornamenti
+
+Le app **non hanno modo di sapere** che un'estensione installata a mano è vecchia: cercano gli
+aggiornamenti solo confrontando quello che hai installato con l'indice dei **repository
+configurati**. Una release non è un repository, è un posto da cui scaricare un file.
+
+**Gli indirizzi da incollare** in *Impostazioni -> Sorgenti -> Repository di estensioni*, uno per
+applicazione, perché gli indici dei due ecosistemi non sono compatibili:
+
+| app | indirizzo |
+|---|---|
+| **Mihon** | `https://roccobot.github.io/mihon-aniyomi-ext/mihon/index.min.json` |
+| **Aniyomi** | `https://roccobot.github.io/mihon-aniyomi-ext/aniyomi/index.min.json` |
+
+- ⚠️ **Vive nel branch `gh-pages` di QUESTO repository**, e la scelta è il punto della faccenda:
+  una sede esterna (per esempio una cartella del sito personale) vorrebbe un token verso un
+  altro repository e potrebbe **restare indietro in silenzio**. Qui build, APK e indice si
+  muovono nello stesso passo del workflow, quindi o si aggiornano insieme o non si aggiorna
+  nulla. ⚠️ Il branch è **orfano**: non condivide storia col codice, così il ramo di sviluppo
+  non riceve commit automatici a ogni build.
+- ⚠️ **L'indirizzo non è una cartella del sito personale**: un repository con Pages attivo è un
+  **sito a sé** servito sotto `roccobot.github.io/<nome-del-repo>/`. Il sito personale non ne sa
+  nulla e non ne è toccato.
+- ⚠️ **`repo.json` dichiara l'impronta della chiave di firma**, e l'app confronta con essa la
+  firma degli APK: se non combaciano li **rifiuta**. È il motivo per cui la firma stabile, che
+  già serviva agli aggiornamenti, qui diventa un requisito del meccanismo.
+- ⚠️ **L'indice si GENERA dal codice** (`scripts/genindex.py`): nome della sorgente, lingua,
+  indirizzo base, versione e nome del pacchetto vengono letti dai sorgenti e dal telaio. Tenerne
+  una copia scritta a mano vorrebbe dire due fonti di verità per lo stesso dato. ⚠️ Lo script
+  **fallisce** se non trova un valore invece di inventarne uno: un indice sbagliato produce
+  un'estensione che l'app scarica e poi rifiuta, molto più difficile da diagnosticare di un
+  errore di build.
+  - ⚠️ **L'identificativo di una sorgente non è arbitrario**: si calcola da nome e lingua con la
+    stessa formula che l'app usa al suo interno. Da qui il fatto che **rinominare una sorgente
+    stacca la libreria** da quello che conteneva, mentre cambiare il nome del pacchetto no.
+
 ## Come si installa un'estensione
 
 1. Scheda **Releases**, apri **`latest`**: è aggiornata a ogni build e porta **due** allegati

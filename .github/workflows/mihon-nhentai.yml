@@ -126,6 +126,47 @@ jobs:
           printf 'APK delle estensioni di questo repository.\n\n%s\n' "$NOTE" \
             | gh release edit latest --notes-file -
 
+      # ⚠️⚠️ IL REPOSITORY DI ESTENSIONI, che è il solo canale da cui le app sanno di essere
+      # vecchie: senza, un APK installato a mano non ha nessuno che possa dirgli che esiste una
+      # versione nuova. Vive nel branch `gh-pages` di QUESTO repository, non altrove, e la
+      # ragione è che una seconda sede vorrebbe un token verso un altro repository e potrebbe
+      # restare indietro in silenzio. Qui build, APK e indice si muovono insieme o non si
+      # muovono affatto.
+      # ⚠️ Branch a parte e non `main`: il codice non deve vedersi arrivare commit automatici a
+      # ogni build, e la storia del progetto resta leggibile.
+      - name: Pubblica nel repository di estensioni
+        if: github.event_name != 'pull_request'
+        working-directory: ${{ github.workspace }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          BUILT=$(ls mihon/src/en/nhentai/build/outputs/apk/*/*.apk | head -1)
+          REMOTO="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # Se il branch non esiste ancora lo si crea ORFANO: il repository di pubblicazione
+          # non ha niente da spartire con la storia del codice.
+          rm -rf pagine
+          git clone --branch gh-pages --depth 1 "$REMOTO" pagine 2>/dev/null || {
+            git clone --depth 1 "$REMOTO" pagine
+            git -C pagine checkout --orphan gh-pages
+            git -C pagine rm -rq --cached . || true
+            find pagine -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          }
+          # ⚠️ Si ripulisce SOLO la propria cartella: l'altra estensione pubblica nella sua, e
+          # un `rm` più largo la cancellerebbe a ogni build, come già successo con gli allegati
+          # della release.
+          mkdir -p pagine/mihon/apk
+          rm -f pagine/mihon/apk/*.apk
+          cp "$BUILT" pagine/mihon/apk/
+          # ⚠️ L'indice si GENERA dal codice: nome, lingua, versione e identificativo della
+          # sorgente vengono letti dai sorgenti e dal telaio, mai scritti a mano in due posti.
+          python3 scripts/genindex.py mihon mihon nhentai "$BUILT" pagine/mihon
+          git -C pagine add -A
+          git -C pagine -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "nhentai $(basename "$BUILT")" || { echo "niente da pubblicare"; exit 0; }
+          git -C pagine push origin gh-pages
+
       # Su tag: una Release che resta, per le versioni che vale la pena tenere. Il prefisso è
       # `m` perché `v*` appartiene già ai tag dell'estensione Aniyomi.
       - name: Pubblica la Release del tag
