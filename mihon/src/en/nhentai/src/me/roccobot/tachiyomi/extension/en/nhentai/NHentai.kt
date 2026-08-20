@@ -63,8 +63,13 @@ class NHentai : HttpSource() {
 
     // ── Browsing ──────────────────────────────────────────────────────────────────────
 
-    // ⚠️ This endpoint takes no page parameter and returns one fixed batch, so the list has to
-    // declare there is nothing after it: claiming otherwise makes the app ask forever.
+    // ⚠️ This endpoint takes NO parameters at all (its OpenAPI document lists none) and returns
+    // a fixed batch of FIVE entries, as a bare array rather than the paged object the other
+    // endpoints use. The short list is the site's own doing, not a truncation here: the count
+    // was measured, so nobody has to wonder again whether something is dropping entries. The
+    // list declares there is nothing after it, or the app would ask forever.
+    // ⚠️ `search` cannot stand in for it: that endpoint REFUSES an empty query (`String should
+    // have at least 1 character`), so there is no way to ask it for 'the popular ones' at large.
     override fun popularMangaRequest(page: Int): Request = GET("$apiUrl/galleries/popular", headers)
 
     override fun popularMangaParse(response: Response): MangasPage =
@@ -73,10 +78,12 @@ class NHentai : HttpSource() {
     override fun latestUpdatesRequest(page: Int): Request =
         GET("$apiUrl/galleries?page=$page&per_page=$PER_PAGE", headers)
 
-    override fun latestUpdatesParse(response: Response): MangasPage {
-        val entries = json.decodeFromString<List<EntryDto>>(response.body.string())
-        return MangasPage(entries.map(::toManga), entries.size >= PER_PAGE)
-    }
+    // ⚠️⚠️ Paged endpoints answer with an OBJECT, not with an array: `{"result":[...],
+    // "num_pages":N,...}`. Only `galleries/popular` answers with a bare array, and reading one
+    // shape where the other is served throws `JsonDecodingException` at offset 0, which is what
+    // the reader showed until this was fixed. The two shapes are worth knowing apart: `result`
+    // is the payload, `num_pages` is what makes paging honest instead of guessed from a count.
+    override fun latestUpdatesParse(response: Response): MangasPage = pagedParse(response)
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val sort = filters.filterIsInstance<SortFilter>().firstOrNull()?.selected() ?: SORT_KEYS[0]
@@ -84,9 +91,16 @@ class NHentai : HttpSource() {
         return GET("$apiUrl/search?query=$encoded&sort=$sort&page=$page", headers)
     }
 
-    override fun searchMangaParse(response: Response): MangasPage {
-        val page = json.decodeFromString<SearchDto>(response.body.string())
-        return MangasPage(page.result.map(::toManga), page.result.isNotEmpty())
+    override fun searchMangaParse(response: Response): MangasPage = pagedParse(response)
+
+    private fun pagedParse(response: Response): MangasPage {
+        val body = json.decodeFromString<PageDtoWrapper>(response.body.string())
+        // ⚠️ Which page this is comes from the REQUEST, because the answer does not say: it
+        // carries `result`, `num_pages`, `per_page` and `total`, and nothing else. Reading a
+        // `page` field that is not there would leave it at its default of 1, so the source
+        // would claim there is a page after this one forever, and the reader would keep asking.
+        val corrente = response.request.url.queryParameter("page")?.toIntOrNull() ?: 1
+        return MangasPage(body.result.map(::toManga), corrente < body.numPages)
     }
 
     override fun getFilterList() = FilterList(SortFilter())
@@ -188,7 +202,10 @@ class NHentai : HttpSource() {
     )
 
     @Serializable
-    private class SearchDto(val result: List<EntryDto>)
+    private class PageDtoWrapper(
+        val result: List<EntryDto> = emptyList(),
+        @SerialName("num_pages") val numPages: Int = 1,
+    )
 
     @Serializable
     private class GalleryDto(
@@ -224,9 +241,15 @@ class NHentai : HttpSource() {
     companion object {
         private const val PER_PAGE = 25
 
-        // The values the search endpoint accepts, in the order the app offers them.
-        private val SORT_KEYS = arrayOf("recent", "popular", "popular-week", "popular-today")
-        private val SORT_LABELS = arrayOf("Recent", "Popular", "Popular this week", "Popular today")
+        // ⚠️⚠️ These are the ONLY values the endpoint accepts, and they come from its own
+        // OpenAPI document, not from the words the website shows. The first version used
+        // `recent`, which reads perfectly well and does not exist: the endpoint answered
+        // `Validation error` and search NEVER worked, from the first build to the day it was
+        // first tried. A wrong sort key does not degrade the result, it refuses the request.
+        private val SORT_KEYS =
+            arrayOf("date", "popular", "popular-week", "popular-today", "popular-month")
+        private val SORT_LABELS =
+            arrayOf("Recent", "Popular", "Popular this week", "Popular today", "Popular this month")
 
         private val AUTHOR_TYPES = setOf("artist", "group")
     }
