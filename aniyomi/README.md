@@ -1,7 +1,7 @@
 # Aniyomi: sorgente hanime.tv (`Hanime Roccobot` in app)
 
 Estensione **hanime.tv** per [Aniyomi](https://github.com/aniyomiorg/aniyomi), a **uso personale**:
-il repository è privato e l'APK non è distribuito, si installa a mano sul telefono
+non è pubblicata in nessun catalogo e si installa dal repository di estensioni del progetto
 (procedura nel [README di radice](../README.md)).
 
 ✅ **Stato: la catena funziona dal vivo, provata dall'utente sul telefono** (2026-08-19,
@@ -72,7 +72,7 @@ con la sessione dell'utente, e l'estensione legge il risultato (vedi `HanimeWebV
 - ⚠️⚠️ **Le credenziali NON stanno nel codice, e non è una dimenticanza**: l'accesso si fa
   **dalla WebView dell'app** (tasto `WebView` nella scheda), e da quel momento il cookie di
   sessione vive nel browser di Aniyomi e l'estensione lo eredita. Una parola d'ordine scritta
-  nel sorgente, anche di un repo privato, resterebbe **nella storia git per sempre**,
+  nel sorgente resterebbe **nella storia git per sempre** anche in un repository privato,
   viaggerebbe in ogni clone e in ogni artefatto della CI, e sopravvivrebbe a un cambio di
   password. L'utente aveva offerto di cablarla: è stata rifiutata per questo.
 - ⚠️ **Tutto passa dal thread principale e blocca quello chiamante**: una WebView non si
