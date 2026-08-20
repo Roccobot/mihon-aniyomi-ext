@@ -139,6 +139,17 @@ ogni workflow riscrive con la propria riga:
   installato sul telefono un APK che nel repository non esiste più. Volendo provare una
   versione prima del merge, la strada pulita è una release separata, non `latest`.
 
+- ⚠️⚠️ **Non leggere la release MENTRE il workflow pubblica**, o si vede uno stato che non
+  esiste. `gh release upload --clobber` sostituisce l'allegato **cancellando prima e caricando
+  poi**, quindi c'è una finestra di un paio di secondi in cui quel file **non è nella release**,
+  e le note portano ancora la riga della versione precedente. Chi guarda in quell'istante
+  conclude che l'APK è stato cancellato, il che è successo davvero il 2026-08-20 e ha innescato
+  un'indagine su un guasto inesistente.
+  - **Come si evita**: prima di guardare la release, guardare l'**ora di fine** del passo di
+    pubblicazione nel job. Se la lettura precede quella, non dice nulla.
+  - È il caso concreto della regola universale per cui una misura sola non fa fede durante una
+    pubblicazione: serve una serie, o l'attesa della fine.
+
 ### ⚠️⚠️ Due workflow, una sola release: le due trappole
 
 I due workflow scrivono nello **stesso** posto, e questo apre due difetti che non si vedono
