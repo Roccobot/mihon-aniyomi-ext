@@ -1,8 +1,8 @@
 # Mihon: sorgente nhentai (`nhentai Roccobot` in app)
 
-Estensione **nhentai.net** per [Mihon](https://github.com/mihonapp/mihon), a **uso personale**: il
-repository è privato e l'APK non è distribuito, si installa a mano sul telefono (procedura nel
-[README di radice](../README.md)).
+Estensione **nhentai.net** per [Mihon](https://github.com/mihonapp/mihon), a **uso personale**:
+non è pubblicata in nessun catalogo e si installa dal repository di estensioni del progetto
+(procedura nel [README di radice](../README.md)).
 
 ## Come si installa
 

@@ -1,7 +1,12 @@
 # Estensioni Mihon e Aniyomi di Roccobot
 
-Repository **privato**, a **uso personale**: le estensioni non sono distribuite e l'APK si
-installa a mano sul telefono.
+Repository **pubblico** dal 2026-08-20, a **uso personale**: le estensioni non sono pubblicate
+in nessun catalogo e si installano dal repository di estensioni qui sotto.
+
+⚠️ **È diventato pubblico per necessità, non per scelta di visibilità**: le app scaricano l'indice
+e gli APK senza autenticarsi, e GitHub Pages su un repository privato richiede un piano a
+pagamento. Renderlo pubblico è stato il modo di tenere codice, APK e indice **nello stesso posto**,
+che è la sola configurazione in cui non possono divergere.
 
 | cartella | ecosistema | che cosa contiene |
 |---|---|---|
@@ -145,6 +150,27 @@ da qui il 'conflitto con un pacchetto esistente' che sembrava un difetto della n
   della sorgente**, che si calcola dal nome e dalla lingua, non dal pacchetto: finché la
   sorgente si chiama come prima, quello che c'è in libreria resta al suo posto.
 
+## ⚠️ Play Protect: DUE avvisi diversi, e solo uno riguarda questo progetto
+
+Si somigliano, arrivano nello stesso momento e portano lo stesso logo, ma hanno cause diverse e
+un solo rimedio ciascuno. Confonderli costa un aggiornamento del telaio di build fatto per
+niente, e per un soffio non è successo.
+
+| avviso | che cosa dice | si risolve |
+|---|---|---|
+| **'App non sicura bloccata'** | *sviluppata per una versione precedente di Android* | qui, col `targetSdk` (sotto) |
+| **'Analisi dell'app consigliata'** | *Play Protect non ha mai rilevato questa app prima d'ora* | **non si risolve qui** |
+
+⚠️⚠️ **Il secondo non è eliminabile dal progetto, e non è un difetto**: Play Protect lo mostra
+per qualunque APK che Google non abbia mai visto. Un'estensione firmata con una chiave propria e
+mai passata da uno store è sconosciuta per definizione, e lo sarà **a ogni versione**, perché
+ogni build produce un file diverso. L'unico posto dove si spegne è il telefono: *Play Store ->
+profilo -> Play Protect -> impostazioni -> 'Migliora il rilevamento delle app dannose'*.
+- ⚠️ Quella voce vale per **tutte** le app installate a mano, non solo per queste: spegnerla è
+  una scelta di chi usa il telefono, non un passo di questa procedura.
+- **Come si distinguono senza indovinare**: si legge la frase, non il titolo. La parola
+  'versione precedente di Android' è l'unico caso che il codice può togliere.
+
 ## ⚠️ Play Protect: 'app non sicura bloccata'
 
 Un secondo ostacolo all'installazione, diverso dal precedente e con un'altra causa: Play Protect
@@ -156,6 +182,9 @@ sotto** l'API del dispositivo. Il telaio dichiarava `32` (Android 12L), quindi l
 già su Android 15 (API 35) e a maggior ragione sul 16.
 
 - **Il target è `34`**, che copre i dispositivi fino ad Android 16 compreso senza avviso.
+  ✅ **Verificato sul campo il 2026-08-20**: su un Android 16 l'avviso della versione precedente
+  è sparito dopo il passaggio da 32 a 34, e al suo posto è rimasto soltanto quello dell'app mai
+  vista, che è un'altra cosa (vedi la tabella qui sopra).
 - ⚠️ **È anche il tetto raggiungibile oggi**: `compileSdk 34` è il massimo che AGP 8.2.1 accetta.
   Per il 35 servirebbe AGP 8.6 o più, cioè muovere il telaio e con esso Gradle e il linter: un
   lavoro a sé, da fare quando l'avviso tornerà, non prima.
@@ -215,9 +244,9 @@ ogni workflow riscrive con la propria riga:
   bastano a far credere di aver scaricato il file sbagliato. Chi riferisce una pubblicazione in
   chat usa la stessa ora, per la stessa ragione.
 - ⚠️ **Le pull request COMPILANO ma non pubblicano**, per la riga `if: github.event_name !=
-  'pull_request'` dei due workflow. Non è un vincolo della piattaforma e si può togliere: il
-  repository è privato e i branch sono interni, quindi il token del workflow ha comunque
-  accesso in scrittura alla release. È una **scelta**, e la ragione è che `latest` deve
+  'pull_request'` dei due workflow. Non è un vincolo della piattaforma e si può togliere: i
+  branch sono interni al repository, quindi il token del workflow ha comunque accesso in
+  scrittura alla release. È una **scelta**, e la ragione è che `latest` deve
   contenere solo codice mergiato: pubblicando dalle PR, una chiusa senza merge lascerebbe
   installato sul telefono un APK che nel repository non esiste più. Volendo provare una
   versione prima del merge, la strada pulita è una release separata, non `latest`.
