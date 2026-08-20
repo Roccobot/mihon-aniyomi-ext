@@ -260,11 +260,10 @@ class HanimeWebView(private val userAgent: String) {
                     if (url.startsWith("http")) onExternal(url)
                 }
                 view.evaluateJavascript(MODAL_DUMP) { HanimeLog.log("PLAY panel  $it") }
-                // ⚠️ Diagnostic only, and deliberately NOT fed to the player: if these titles
-                // are served by a different file host, its address shows up here and the next
-                // trace says so. Each host needs its own rewrite (Pixeldrain wants
-                // `/api/file/`), so guessing one from a name never seen would be worse than
-                // reporting it.
+                // ⚠️ Diagnostic only, and deliberately NOT fed to the player: each host needs
+                // its own rewrite to the bytes, so guessing one from a name never seen would be
+                // worse than reporting it. ⚠️ What it reported first was not a new host but a
+                // page shape the matcher above did not know: see [EXTERNAL_HOSTS].
                 view.evaluateJavascript(EXTERNAL_HOSTS) { HanimeLog.log("PLAY hosts  $it") }
             }, OPTION_DELAY + delay)
         }
@@ -462,6 +461,14 @@ class HanimeWebView(private val userAgent: String) {
          * somewhere else would come back empty-handed and look exactly like a click that failed.
          * This tells the two apart in the next trace. The known-innocent hosts are filtered out,
          * or every run would report the site's own Discord invite.
+         *
+         * ⚠️⚠️ **It earned its place on the first trace, and not in the way it was meant to.**
+         * It was written for the hypothesis 'these titles live on a different host'; what it
+         * actually reported was the SAME host in a page shape the matcher did not know
+         * (`/d/<id>` against the `/u/<id>` it looked for), while the line beside it said `url?
+         * none`. Two lines disagreeing about the same page is what turned an intermittent
+         * failure into a one-character fix. Keep it: a matcher that reports only its own hits
+         * can never contradict itself.
          */
         private const val EXTERNAL_HOSTS =
             """(function () {
@@ -483,7 +490,7 @@ class HanimeWebView(private val userAgent: String) {
          */
         private const val FIND_EXTERNAL_URL =
             """(function () {
-                 var re = /https?:\/\/pixeldrain\.(?:net|com)\/u\/[A-Za-z0-9]+/;
+                 var re = /https?:\/\/pixeldrain\.(?:net|com)\/[ud]\/[A-Za-z0-9]+/;
                  var body = document.body ? (document.body.innerText || '') : '';
                  var m = body.match(re);
                  if (m) return m[0];

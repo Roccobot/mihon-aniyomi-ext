@@ -279,12 +279,15 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
 
     /**
      * A file-host PAGE turned into the file itself, or null when this is not one of them.
-     * ⚠️ Handing the player the `/u/<id>` page would give it HTML to play: pixeldrain serves
-     * the bytes at `/api/file/<id>`, which answers range requests, so it can be streamed
-     * instead of downloaded whole.
+     * ⚠️ Handing the player the page would give it HTML to play: pixeldrain serves the bytes
+     * at an API endpoint that answers range requests, so it can be streamed instead of
+     * downloaded whole. Which endpoint depends on the page shape: see [PIXELDRAIN_PAGE].
      */
     private fun String.asDirectFile(): String? {
-        PIXELDRAIN_PAGE.find(this)?.let { return "https://pixeldrain.net/api/file/${it.groupValues[1]}" }
+        PIXELDRAIN_PAGE.find(this)?.let { match ->
+            val (kind, id) = match.destructured
+            PIXELDRAIN_ENDPOINT[kind]?.let { return "https://pixeldrain.net/$it/$id" }
+        }
         return takeIf { MEDIA_URL.containsMatchIn(it) }
     }
 
@@ -384,8 +387,23 @@ class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
             "https://hanime.tv/search?q=${URLEncoder.encode(query, "UTF-8")}&order=$SEARCH_ORDER"
 
         private val VIDEO_LINK = Regex(Regex.escape(VIDEO_PATH))
-        private val MEDIA_URL = Regex("""\.(m3u8|mp4)(\?|$)|pixeldrain\.(net|com)/(u|api/file)/""")
-        private val PIXELDRAIN_PAGE = Regex("""pixeldrain\.(?:net|com)/u/([A-Za-z0-9]+)""")
+        private val MEDIA_URL =
+            Regex("""\.(m3u8|mp4)(\?|$)|pixeldrain\.(net|com)/([ud]|api/(file|filesystem))/""")
+
+        /**
+         * ⚠️⚠️ TWO page shapes, and the second one is the whole reason playback failed: the
+         * site links `/d/<id>`, while this pattern only knew `/u/<id>`. One letter, and every
+         * attempt ended with the address sitting in the page unrecognised. The diagnostic line
+         * added in 23 is what showed it: it reported the very link this regex was missing.
+         *
+         * The two are NOT interchangeable and each has its own byte-serving endpoint, measured
+         * on the failing title (`wUVNHedH`): `/api/filesystem/<id>` answers `206` with
+         * `Content-Type: video/mp4` and `Accept-Ranges: bytes`, while `/api/file/<id>` answers
+         * `404 not_found` for the same id. Rewriting one into the other's endpoint would look
+         * like a dead link rather than a mistake.
+         */
+        private val PIXELDRAIN_PAGE = Regex("""pixeldrain\.(?:net|com)/([ud])/([A-Za-z0-9]+)""")
+        private val PIXELDRAIN_ENDPOINT = mapOf("u" to "api/file", "d" to "api/filesystem")
 
         // The element the site puts where the player would be, when a title is not available.
 
