@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.animeextension.en.hanime
+package me.roccobot.tachiyomi.animeextension.en.hanime
 
 import android.annotation.SuppressLint
 import android.app.Application

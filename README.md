@@ -62,6 +62,36 @@ CI pulito **non esiste e viene generato al volo**: ogni versione portava quindi 
   riporta esattamente al difetto di partenza. Va conservata fuori dal repository. Quella in uso
   scade nel 2056, quindi non è una scadenza da presidiare.
 
+## ⚠️⚠️ Il nome del pacchetto è `me.roccobot.*`, e non è cosmesi
+
+Le due estensioni dichiarano `me.roccobot.tachiyomi.animeextension.en.hanime` e
+`me.roccobot.tachiyomi.extension.en.nhentai`, dove prima avevano i nomi **canonici** di
+Tachiyomi (`eu.kanade.tachiyomi.*`).
+
+**Perché**: quei nomi sono gli stessi delle estensioni **ufficiali** di hanime e nhentai. Con un
+repository ufficiale configurato nell'app, quella confondeva le nostre con le loro e proponeva
+un aggiornamento che avrebbe installato l'APK di un altro autore, firmato con un'altra chiave:
+da qui il 'conflitto con un pacchetto esistente' che sembrava un difetto della nostra firma.
+
+- **Perché il dominio al contrario, e perché proprio questo**: la convenzione chiede un dominio
+  che si **possiede** (garantisce che nessun altro produca lo stesso identificatore), non quello
+  che ospita il software. `roccobot.me` è dell'utente. ⚠️ Scartato `io.github.roccobot`, pure
+  legittimo: un nome di pacchetto **non si cambia mai più** senza reinstallare, quindi legarlo a
+  un fornitore lo farebbe mentire il giorno in cui il fornitore cambia.
+- ⚠️⚠️ **NON basta cambiare il namespace: vanno spostati anche i sorgenti.** Il manifest
+  dichiara la classe come `.Hanime`, cioè **relativa**, e l'app la risolve componendo
+  `<nome del pacchetto> + <extClass>`. Cambiando il pacchetto dell'APK ma lasciando i sorgenti
+  nel package Kotlin vecchio, l'estensione si installa e poi **non viene mai caricata**: il
+  difetto peggiore, perché non produce alcun errore visibile.
+- ⚠️ **Le stringhe `tachiyomi.animeextension` e `tachiyomi.extension` del manifest NON si
+  toccano**: quelle non sono il nome del pacchetto, sono la dichiarazione con cui l'app
+  riconosce un APK come estensione. Rinominarle produrrebbe esattamente ciò che il rinomino
+  vuole evitare, cioè un'estensione invisibile.
+- **Il cambio costa una disinstallazione, ma non i dati**: per Android è un'app nuova, quindi
+  quella vecchia va rimossa a mano. Libreria e cronologia però sono legate all'**identificativo
+  della sorgente**, che si calcola dal nome e dalla lingua, non dal pacchetto: finché la
+  sorgente si chiama come prima, quello che c'è in libreria resta al suo posto.
+
 ## ⚠️ Play Protect: 'app non sicura bloccata'
 
 Un secondo ostacolo all'installazione, diverso dal precedente e con un'altra causa: Play Protect

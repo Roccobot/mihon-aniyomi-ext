@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.animeextension.en.hanime
+package me.roccobot.tachiyomi.animeextension.en.hanime
 
 import android.app.Application
 import android.util.Log
