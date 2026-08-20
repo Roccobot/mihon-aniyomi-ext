@@ -42,10 +42,47 @@ jobs:
       - name: Gradle
         uses: gradle/actions/setup-gradle@v5
 
-      # Build di debug per scelta, come per l'altra estensione: una release vuole un keystore,
-      # e questa si installa a mano sul telefono.
+      # ⚠️⚠️ LA FIRMA DEVE ESSERE STABILE, e non è un dettaglio di stile: Android rifiuta un
+      # aggiornamento firmato con una chiave diversa da quella dell'app installata, con
+      # 'conflitto con un pacchetto esistente'. Un build di debug usa `~/.android/debug.keystore`,
+      # che su un runner pulito **non esiste e viene generato ogni volta**: ogni versione portava
+      # quindi una firma nuova, e l'aggiornamento proposto dall'app non si poteva installare.
+      # La chiave vive nei secret del repository e non è mai committata.
+      - name: Prepara la chiave di firma
+        id: chiave
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: |
+          set -eu
+          if [ -n "${SIGNING_KEY:-}" ]; then
+            # `rootProject` qui è `mihon/`, che è già la cartella di lavoro: il telaio cerca
+            # il keystore in `rootProject.file("signingkey.jks")`.
+            printf '%s' "$SIGNING_KEY" | base64 -d > signingkey.jks
+            echo "firmata=si" >> "$GITHUB_OUTPUT"
+          else
+            # ⚠️ Non fallisce: senza i secret si compila come prima. Una configurazione
+            # incompleta non deve bloccare le build, e il nome del file prodotto dice da sé
+            # quale delle due strade è stata presa.
+            echo "firmata=no" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build
-        run: ./gradlew :src:en:nhentai:assembleDebug --stacktrace
+        env:
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          ALIAS: ${{ secrets.ALIAS }}
+        run: |
+          set -eu
+          if [ "${{ steps.chiave.outputs.firmata }}" = "si" ]; then
+            ./gradlew :src:en:nhentai:assembleRelease --stacktrace
+          else
+            ./gradlew :src:en:nhentai:assembleDebug --stacktrace
+          fi
+
+      # La chiave non deve sopravvivere al passo che la usa, nemmeno su un runner effimero.
+      - name: Rimuovi la chiave
+        if: always()
+        run: rm -f signingkey.jks
 
       # ⚠️ La release è la STESSA `latest` dell'altra estensione, con un allegato dal nome
       # diverso: due release separate vorrebbero due indirizzi da ricordare, e il tocco che
@@ -57,7 +94,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
-          BUILT=$(ls src/en/nhentai/build/outputs/apk/debug/*.apk | head -1)
+          # ⚠️ Il glob prende `debug` e `release` senza nominarli: quale dei due esista dipende dai
+          # secret di firma, e un percorso fisso avrebbe rotto la pubblicazione il giorno in cui
+          # sono stati aggiunti.
+          BUILT=$(ls src/en/nhentai/build/outputs/apk/*/*.apk | head -1)
           # ⚠️ NOME FISSO: `--clobber` sostituisce solo a parità di nome, e il nome prodotto dal
           # build contiene la versione, quindi ogni build ne aggiungerebbe uno nuovo invece di
           # sostituire quello vecchio.
@@ -96,4 +136,4 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" \
             --title "${GITHUB_REF_NAME}" \
             --notes "APK dell'estensione nhentai per Mihon, build ${GITHUB_SHA}." \
-            src/en/nhentai/build/outputs/apk/debug/*.apk
+            src/en/nhentai/build/outputs/apk/*/*.apk
