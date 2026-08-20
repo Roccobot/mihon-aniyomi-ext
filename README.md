@@ -34,6 +34,34 @@ build completo, non hanno alcun punto di contatto da mantenere allineato.
 
 Il dettaglio di com'è fatta ogni sorgente sta nel README della sua cartella.
 
+## ⚠️⚠️ La firma, e perché gli aggiornamenti non si installavano
+
+Le app propongono da sé l'aggiornamento di un'estensione, ma l'installazione finiva sempre con
+*'Applicazione non installata a causa di un conflitto con un pacchetto esistente'*.
+
+⚠️ **Non è il nome del pacchetto**, e a dimostrarlo è il sintomo stesso: se l'identificativo
+fosse diverso, l'app non avrebbe alcun aggiornamento da proporre, sarebbe un'installazione nuova.
+Il riconoscimento dell'estensione, del resto, non passa dal nome del pacchetto ma dal manifest
+(`<uses-feature android:name="tachiyomi.animeextension" />`, e l'omologo senza `anime` per Mihon).
+
+**È la firma.** Android rifiuta un aggiornamento firmato con una chiave diversa da quella
+dell'app installata, ed è una difesa fondamentale: senza di essa chiunque potrebbe sostituire
+un'app con la propria. Un build **di debug** usa `~/.android/debug.keystore`, che su un runner di
+CI pulito **non esiste e viene generato al volo**: ogni versione portava quindi una firma nuova.
+
+- **La chiave vive nei secret del repository**, mai nel codice: `SIGNING_KEY` (il keystore in
+  base64), `KEY_STORE_PASSWORD`, `KEY_PASSWORD`, `ALIAS`. Il workflow la ricostruisce in un file
+  che `.gitignore` copre già, la usa e la **cancella subito dopo**.
+- ⚠️ **Senza i secret la build NON fallisce**: torna a compilare in debug. Una configurazione
+  incompleta non deve bloccare le build, e il nome del file prodotto (`-release.apk` invece di
+  `-debug.apk`, visibile nelle note della release) dice da sé quale strada è stata presa.
+- ⚠️ **Il passaggio costa UNA disinstallazione**: il primo APK firmato con la chiave nuova non si
+  installa sopra quello vecchio, per la ragione stessa che questa sezione descrive. Dopo, gli
+  aggiornamenti proposti dall'app si installano senza conflitti.
+- ⚠️⚠️ **Se la chiave si perde, si ricomincia da capo**: una chiave nuova è un'identità nuova, e
+  riporta esattamente al difetto di partenza. Va conservata fuori dal repository. Quella in uso
+  scade nel 2056, quindi non è una scadenza da presidiare.
+
 ## ⚠️⚠️ Quando il difetto non è nell'estensione: i blocchi di rete
 
 Vale per **tutte** le sorgenti di questo repository, e va escluso **prima** di andare a
