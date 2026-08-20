@@ -35,7 +35,7 @@ supposizioni: <https://nhentai.net/api/v2/openapi.json> (89 endpoint, di cui qui
 | ultimi arrivi | `galleries` con `page` e `per_page` |
 | ricerca e ordinamento | `search` con `query`, `sort`, `page` |
 | scheda, tag e pagine | `galleries/{id}` |
-| indirizzi dei server immagine | `cdn` |
+| indirizzi dei server (immagini e miniature) | `cdn` |
 
 ### ⚠️ Trappole
 
@@ -43,9 +43,21 @@ supposizioni: <https://nhentai.net/api/v2/openapi.json> (89 endpoint, di cui qui
   che costa un pomeriggio: gli indirizzi delle immagini si costruiscono col secondo, che compare
   dentro il percorso di ogni pagina. La sorgente non lo compone a mano proprio per questo: prende
   il percorso già pronto che l'API restituisce e ci antepone il server.
-- ⚠️ **I quattro server immagine NON sono partizioni**: la stessa identica immagine risponde
-  `206 image/webp` su tutti e quattro (misurato). Distribuire le pagine fra loro è cortesia verso
-  il sito, non una necessità, e nessuna pagina si rompe se un domani ne restasse uno solo.
+- ⚠️⚠️ **I server sono DUE INSIEMI, non uno, e non sono intercambiabili**: `image_servers` (i
+  quattro `i*`) serve le **pagine da leggere**, `thumb_servers` (i quattro `t*`) serve
+  **copertine e miniature**. Chiedere all'insieme sbagliato **non dà un `404`** che indicherebbe
+  l'errore: la connessione viene **troncata a metà**, e nell'app si vede come una copertina che
+  non arriva senza motivo.
+  - **Misurato** su `galleries/4126277` il 2026-08-20: `thumb.webp` risponde `200 image/webp`
+    (29 KB) su `t1` e muore su `i1`; `1.webp` risponde `200 image/webp` (243 KB) su `i1` e muore
+    su `t1`. Vale anche per la copertina della scheda (`cover.webp.webp`, 33 KB su `t1`).
+  - ⚠️ **È il difetto della v1**, trovato quando l'utente ha visto i titoli arrivare e le
+    copertine no: la sorgente conosceva un insieme solo e lo usava per tutto. Il sintomo era
+    fuorviante perché la parte che funzionava (l'elenco) e quella che non funzionava (le
+    immagini) sembravano venire dalla stessa fonte.
+- ⚠️ **Dentro un insieme i quattro server SONO intercambiabili**: la stessa identica immagine
+  risponde su tutti e quattro (misurato). Distribuire le richieste fra loro è cortesia verso il
+  sito, non una necessità, e niente si rompe se un domani ne restasse uno solo.
 - ⚠️ **L'endpoint dei popolari non conosce le pagine**: restituisce un lotto fisso. La lista deve
   quindi dichiarare che dopo non c'è altro, o l'app continuerebbe a chiedere pagine successive
   all'infinito.
