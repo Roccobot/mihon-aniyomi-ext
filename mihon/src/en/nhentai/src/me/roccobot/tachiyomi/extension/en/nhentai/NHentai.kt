@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.extension.en.nhentai
+package me.roccobot.tachiyomi.extension.en.nhentai
 
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.Filter
