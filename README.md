@@ -44,7 +44,7 @@ applicazione, perché gli indici dei due ecosistemi non sono compatibili:
   la pubblicazione e il momento in cui l'elenco cambia sul telefono ci sono **due ritardi
   sovrapposti**, e vale la pena distinguerli invece di rilanciare build a caso.
   1. Il **deploy di Pages**, che può prendersi qualche minuto dopo che il workflow ha scritto
-     nel branch. ⚠️ Si riconosce dal fatto che il branch porta la versione nuova mentre
+     nel branch. ⚠️ Si riconosce dal fatto che il branch dichiara la versione nuova mentre
      l'indirizzo pubblico serve ancora la vecchia: è successo, e il rimedio è aspettare.
   2. La **cache**, che GitHub Pages dichiara a `max-age=600`, cioè dieci minuti.
      ⚠️⚠️ **NON si scavalca dall'app, e i tentativi che verrebbero in mente sono inutili**:
@@ -81,7 +81,7 @@ applicazione, perché gli indici dei due ecosistemi non sono compatibili:
 
 ## Come si installa un'estensione
 
-1. Scheda **Releases**, apri **`latest`**: è aggiornata a ogni build e porta **due** allegati
+1. Scheda **Releases**, apri **`latest`**: è aggiornata a ogni build e include **due** allegati
    dal nome stabile, `aniyomi-hanime.apk` e `mihon-nhentai.apk`, scaricabili con un tocco. Le
    versioni con un tag hanno una Release propria, che resta (`v*` per Aniyomi, `m*` per Mihon).
    ⚠️ Gli artefatti di Actions non si usano più: chiedono l'accesso a GitHub, arrivano in uno
@@ -105,7 +105,7 @@ Il riconoscimento dell'estensione, del resto, non passa dal nome del pacchetto m
 **È la firma.** Android rifiuta un aggiornamento firmato con una chiave diversa da quella
 dell'app installata, ed è una difesa fondamentale: senza di essa chiunque potrebbe sostituire
 un'app con la propria. Un build **di debug** usa `~/.android/debug.keystore`, che su un runner di
-CI pulito **non esiste e viene generato al volo**: ogni versione portava quindi una firma nuova.
+CI pulito **non esiste e viene generato al volo**: ogni versione aveva quindi una firma nuova.
 
 - **La chiave vive nei secret del repository**, mai nel codice: `SIGNING_KEY` (il keystore in
   base64), `KEY_STORE_PASSWORD`, `KEY_PASSWORD`, `ALIAS`. Il workflow la ricostruisce in un file
@@ -152,7 +152,7 @@ da qui il 'conflitto con un pacchetto esistente' che sembrava un difetto della n
 
 ## ⚠️ Play Protect: DUE avvisi diversi, e solo uno riguarda questo progetto
 
-Si somigliano, arrivano nello stesso momento e portano lo stesso logo, ma hanno cause diverse e
+Si somigliano, arrivano nello stesso momento e mostrano lo stesso logo, ma hanno cause diverse e
 un solo rimedio ciascuno. Confonderli costa un aggiornamento del telaio di build fatto per
 niente, e per un soffio non è successo.
 
@@ -258,7 +258,7 @@ ogni workflow riscrive con la propria riga:
 - ⚠️⚠️ **Non leggere la release MENTRE il workflow pubblica**, o si vede uno stato che non
   esiste. `gh release upload --clobber` sostituisce l'allegato **cancellando prima e caricando
   poi**, quindi c'è una finestra di un paio di secondi in cui quel file **non è nella release**,
-  e le note portano ancora la riga della versione precedente. Chi guarda in quell'istante
+  e le note riportano ancora la riga della versione precedente. Chi guarda in quell'istante
   conclude che l'APK è stato cancellato, il che è successo davvero il 2026-08-20 e ha innescato
   un'indagine su un guasto inesistente.
   - **Come si evita**: prima di guardare la release, guardare l'**ora di fine** del passo di
@@ -274,7 +274,7 @@ formato nuovo, e sono corretti: la nota resta perché la prossima estensione li 
 
 - **Le note**: si tengono le **sole** righe marcate (`- **`) e ci si aggiunge la propria, invece
   di conservare tutto il corpo tranne la propria. Con un filtro per sola esclusione, il testo
-  scritto alla creazione della release non porta alcun marcatore e sopravvive per sempre,
+  scritto alla creazione della release non contiene alcun marcatore e sopravvive per sempre,
   dichiarando una versione vecchia accanto a quella nuova.
 - **Gli allegati**: la pulizia dei file versionati rimasti dai giri precedenti deve nominare il
   **proprio prefisso**, non escludere il proprio nome stabile. Escludendo solo il proprio,

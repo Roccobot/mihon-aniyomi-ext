@@ -82,7 +82,7 @@ difficile da diagnosticare di tutti.
   quella libreria è compilata con **Kotlin 2.4**, questo telaio gira a **Kotlin 1.8.22**, e un
   compilatore che non sa leggere i metadati della classe base dichiara **irrisolto ogni membro
   ereditato**. Il risultato è una cascata di decine di errori che sembrano tutti difetti del
-  sorgente e non lo sono: l'unico vero è la riga sulla versione incompatibile, che sta in cima.
+  sorgente e non lo sono: l'unico vero è la riga sulla versione incompatibile, che è in cima.
   - **Perché non si alza Kotlin e basta**: salire alla 2.4 vuol dire muovere insieme Kotlin, AGP
     e il linter, cioè un lavoro a sé con più variabili in gioco, e farebbe divergere questo
     telaio da quello di `aniyomi/`, che resta alla 1.8.22.

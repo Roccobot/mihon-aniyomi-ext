@@ -13,7 +13,7 @@ la sorgente funziona.
 ## Come si installa
 
 1. Vai nella scheda **Releases** del repository e apri **`latest`**: è aggiornata a ogni build e
-   porta sempre lo stesso allegato, `aniyomi-hanime.apk`, scaricabile con un tocco. ⚠️ Non ci sono più artefatti di
+   include sempre lo stesso allegato, `aniyomi-hanime.apk`, scaricabile con un tocco. ⚠️ Non ci sono più artefatti di
    Actions: `actions/upload-artifact` gira ancora su Node 20 anche alla v5 ed era la sola
    origine dell'avviso di deprecazione, e un artefatto chiede l'accesso a GitHub, arriva in uno
    zip e scade dopo 90 giorni.
@@ -30,7 +30,7 @@ comodo.** Storia breve, perché è la cosa che serve sapere prima di rimetterci 
   `hanime.tv/api/v8/video` per il resto), presa da un client di terze parti. Non funziona:
   quei **due host non esistono più**, e il telefono lo dice con un `NXDOMAIN`;
 - l'API attuale è la **v11**, e ha due strati di protezione: le richieste di catalogo
-  portano una **firma prodotta da un modulo WASM** che il sito distribuisce dentro il
+  includono una **firma prodotta da un modulo WASM** che il sito distribuisce dentro il
   bundle del player, e l'handshake dei flussi manda un **token sigillato** con una chiave
   ricavata da quello stesso bundle, rispondendo con un'intestazione cifrata;
 - ⚠️ **rifarli è fuori discussione**: vorrebbe dire prendere il modulo compilato del sito e
@@ -49,7 +49,7 @@ con la sessione dell'utente, e l'estensione legge il risultato (vedi `HanimeWebV
   restyling; i nomi di classe no, e indovinarli è l'errore che ha fatto naufragare la prima
   versione.
 - ⚠️⚠️ **Il titolo si prende dal TESTO della scheda, e gli attributi solo come ripiego**
-  (misurato sul dispositivo, 2026-08-19): `title` e `alt` portano il testo SEO del sito
+  (misurato sul dispositivo, 2026-08-19): `title` e `alt` contengono il testo SEO del sito
   ('Watch Momone 1 hentai online...'), e leggendo quelli per primi le voci si chiamavano
   davvero `Watch ...`. Peggio: il numero in quella stringa sta **in mezzo**, quindi la
   regola di raggruppamento non trovava niente da togliere e ogni episodio restava una voce a
@@ -290,7 +290,7 @@ menu con `Sign Out`, `My Channel` e `Account Settings`, e un `keep-alive` su
   **modale che promuove l'abbonamento**. Da qui la lettura del modale (`PLAY modal`), che è
   l'unica cosa che distingue un muro commerciale da un secondo passo da fare.
 - ⚠️ **Nella traccia NON devono finire dati personali**, ed erano finiti: l'etichetta del menu
-  utente portava nome utente e indirizzo email dell'utente, in un file che si incolla in chat.
+  utente conteneva nome utente e indirizzo email dell'utente, in un file che si incolla in chat.
   Ora sono oscurati.
 - ⚠️ **'Autenticato' si legge da `Sign Out`, non dall'assenza di `Sign In`**: il menu offre
   entrambi a chi ha la sessione attiva, quindi il vecchio controllo diceva l'opposto del vero.
